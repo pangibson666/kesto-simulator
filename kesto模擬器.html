@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kesto Clone - 隨機形狀不重疊版</title>
+<style>
+  body {
+    background-color: #121212;
+    color: #ffffff;
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0;
+    padding: 15px;
+    touch-action: none;
+    user-select: none;
+  }
+  .header {
+    display: flex;
+    flex-direction: column;
+    width: 368px;
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+  .title {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  .controls-row {
+    display: flex;
+    gap: 5px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  button, select {
+    background-color: #333;
+    color: white;
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:active { background-color: #555; }
+  select { outline: none; }
+  
+  #editor-toolbar {
+    display: none;
+    background-color: #222;
+    padding: 8px;
+    border-radius: 6px;
+    width: 352px;
+    margin-bottom: 10px;
+    justify-content: space-between;
+    align-items: center;
+    border: 1px dashed #fca33d;
+  }
+  .tool-group { display: flex; gap: 4px; }
+  .tool-btn { border: 2px solid transparent; }
+  .tool-btn.active { border-color: #fff; font-weight: bold; }
+  #btn-tool-wall { background-color: #555; }
+  #btn-tool-start { background-color: #fca33d; color: #000; }
+  #btn-tool-target { background-color: #4287f5; }
+
+  #game-board {
+    display: grid;
+    grid-template-columns: repeat(8, 40px);
+    grid-template-rows: repeat(8, 40px);
+    gap: 4px;
+    background-color: #1a1a1a;
+    padding: 10px;
+    border-radius: 8px;
+    position: relative;
+  }
+  .cell {
+    width: 40px;
+    height: 40px;
+    background-color: #2a2a2a;
+    border-radius: 4px;
+  }
+  .cell.edit-hover:hover { background-color: #3a3a3a; }
+  
+  .block {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+  
+  .orange { background-color: #fca33d; z-index: 20; }
+  .orange.on-target { background-color: #4287f5; }
+
+  .blue {
+    border: 3px dashed #4287f5;
+    background-color: rgba(66, 135, 245, 0.1);
+    z-index: 10;
+  }
+  .gray { background-color: #555555; z-index: 15; }
+  
+  .modal {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    z-index: 100;
+    border-radius: 8px;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+  .modal-content { text-align: center; padding: 20px; }
+  .modal-title { color: #fca33d; font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+  .modal-text { font-size: 16px; color: #aaa; margin-bottom: 20px; }
+  .modal-buttons { display: flex; gap: 15px; justify-content: center; }
+  .modal-buttons button { padding: 10px 20px; font-size: 16px; font-weight: bold; }
+  .btn-replay { background-color: #555; color: white; }
+  .btn-next { background-color: #4287f5; color: white; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="top-row">
+    <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
+    <div style="display:flex; gap:5px;">
+      <select id="anim-select" onchange="updateAnimSpeed()">
+        <option value="0">無動畫</option>
+        <option value="100">動畫: 快</option>
+        <option value="150" selected>動畫: 中</option>
+        <option value="300">動畫: 慢</option>
+      </select>
+      <select id="difficulty-select" onchange="generateLevel()">
+        <option value="easy">簡單 (5-7步)</option>
+        <option value="medium" selected>普通 (8-13步)</option>
+        <option value="hard">困難 (14-20步🔥)</option>
+      </select>
+    </div>
+  </div>
+  <div class="controls-row">
+    <select id="history-select" onchange="loadSelectedHistory(this.value)">
+      <option value="-1">-- 歷史關卡 --</option>
+    </select>
+    <div style="display:flex; gap:3px;">
+      <button onclick="undo()">⟲ 復原</button>
+      <button onclick="resetLevel()">↻ 重置</button>
+      <button id="btn-edit-mode" onclick="toggleEditMode()" style="background-color:#5c3da6;">🛠️ 設計</button>
+      <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
+    </div>
+  </div>
+</div>
+
+<div id="editor-toolbar">
+  <div class="tool-group">
+    <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
+    <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
+    <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
+  </div>
+  <div style="display:flex; gap:4px;">
+    <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
+    <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
+  </div>
+</div>
+
+<div id="game-board">
+  <div id="win-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-title">太神啦！🎉</div>
+      <div id="modal-step-text" class="modal-text">你用了 0 步成功通關！</div>
+      <div id="modal-optimal-text" style="font-size:14px; color:#66e066; margin-bottom:15px;"></div>
+      <div class="modal-buttons">
+        <button class="btn-replay" onclick="closeModalAndReplay()">再玩一次</button>
+        <button class="btn-next" onclick="closeModalAndNext()">下一關</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GRID_SIZE = 8;
+  const CELL_SIZE = 40;
+  const GAP = 4;
+  const PADDING = 10;
+  
+  // 原本固定的 SHAPE_OFFSETS 已刪除，改用動態生成
+
+  let initialOrangeBlocks = [];
+  let targetBlueBlocks = []; 
+  let initialWalls = [];
+
+  let orangeBlocks = [];
+  let walls = [];
+  let stepCount = 0;
+  let history = [];
+  let savedLevels = [];
+
+  let isEditMode = false;
+  let currentEditTool = 'wall';
+
+  let animDuration = 150;
+  let isAnimating = false;
+  
+  let cachedOptimalSteps = 0;
+
+  function initBoard() {
+    const board = document.getElementById('game-board');
+    for (let i = 0; i < 64; i++) {
+      let cell = document.createElement('div');
+      cell.className = 'cell';
+      let r = Math.floor(i / GRID_SIZE);
+      let c = i % GRID_SIZE;
+      cell.onclick = () => handleCellClick(r, c);
+      board.appendChild(cell);
+    }
+    updateAnimSpeed();
+    generateLevel(); 
+  }
+
+  function updateAnimSpeed() { animDuration = parseInt(document.getElementById('anim-select').value); }
+  function getPixel(pos) { return PADDING + pos * (CELL_SIZE + GAP); }
+
+  function draw() {
+    const board = document.getElementById('game-board');
+    document.querySelectorAll('.dynamic').forEach(el => el.remove());
+
+    targetBlueBlocks.forEach(b => {
+      let el = document.createElement('div');
+      el.className = 'block blue dynamic';
+      el.style.top = getPixel(b.r) + 'px';
+      el.style.left = getPixel(b.c) + 'px';
+      board.appendChild(el);
+    });
+
+    walls.forEach(w => {
+      let el = document.createElement('div');
+      el.className = 'block gray dynamic';
+      el.style.top = getPixel(w[0]) + 'px';
+      el.style.left = getPixel(w[1]) + 'px';
+      board.appendChild(el);
+    });
+
+    orangeBlocks.forEach(b => {
+      let el = document.createElement('div');
+      el.className = 'block orange dynamic';
+      el.id = `orange-block-${b.id}`; 
+      el.style.transition = `top ${animDuration}ms ease-out, left ${animDuration}ms ease-out, background-color ${animDuration}ms ease`;
+      el.style.top = getPixel(b.r) + 'px';
+      el.style.left = getPixel(b.c) + 'px';
+      
+      if (targetBlueBlocks.some(tb => tb.r === b.r && tb.c === b.c)) {
+        el.classList.add('on-target');
+      }
+      board.appendChild(el);
+    });
+
+    document.getElementById('step-counter').innerText = stepCount + ' 步';
+  }
+
+  function cloneBlocks(blocks) { return blocks.map(b => ({id: b.id, r: b.r, c: b.c})); }
+
+  function moveGroup(blocks, dr, dc, currentWalls) {
+    blocks.sort((a, b) => {
+      if (dr !== 0) return dr === 1 ? b.r - a.r : a.r - b.r;
+      if (dc !== 0) return dc === 1 ? b.c - a.c : a.c - b.c;
+      return 0;
+    });
+
+    let currentOccupied = new Set(blocks.map(b => `${b.r},${b.c}`));
+    let moved = false;
+
+    for (let block of blocks) {
+      let nr = block.r + dr;
+      let nc = block.c + dc;
+      if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) continue;
+      if (currentWalls.some(w => w[0] === nr && w[1] === nc)) continue;
+      
+      currentOccupied.delete(`${block.r},${block.c}`);
+      if (currentOccupied.has(`${nr},${nc}`)) {
+        currentOccupied.add(`${block.r},${block.c}`);
+      } else {
+        block.r = nr;
+        block.c = nc;
+        currentOccupied.add(`${nr},${nc}`);
+        moved = true;
+      }
+    }
+    return moved;
+  }
+
+  function findOptimalSteps(startBlocks, targetBlocks, currentWalls) {
+    let serialize = (b) => b.map(x => (x.r << 3) | x.c).sort((x, y) => x - y).join(',');
+    let targetStr = serialize(targetBlocks);
+    let startStr = serialize(startBlocks);
+    if (startStr === targetStr) return 0;
+
+    let queue = [{ blocks: cloneBlocks(startBlocks), steps: 0 }];
+    let visited = new Set([startStr]);
+    let maxStates = 15000;
+    let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+
+    while (queue.length > 0) {
+      let curr = queue.shift();
+      if (curr.steps >= 35) continue; 
+      if (maxStates-- <= 0) break;
+
+      for (let d of dirs) {
+        let nextBlocks = cloneBlocks(curr.blocks);
+        if (moveGroup(nextBlocks, d[0], d[1], currentWalls)) {
+          let key = serialize(nextBlocks);
+          if (!visited.has(key)) {
+            if (key === targetStr) return curr.steps + 1;
+            visited.add(key);
+            queue.push({ blocks: nextBlocks, steps: curr.steps + 1 });
+          }
+        }
+      }
+    }
+    return -1; 
+  }
+
+  function move(dr, dc) {
+    if (isEditMode || document.getElementById('win-modal').style.display === 'flex' || isAnimating) return;
+    
+    let nextOr = cloneBlocks(orangeBlocks);
+    let movedOr = moveGroup(nextOr, dr, dc, walls);
+
+    if (movedOr) {
+      history.push({ orange: cloneBlocks(orangeBlocks), step: stepCount });
+      orangeBlocks = nextOr;
+      stepCount++;
+      document.getElementById('step-counter').innerText = stepCount + ' 步';
+
+      if (animDuration > 0) {
+        isAnimating = true;
+        orangeBlocks.forEach(b => {
+          let el = document.getElementById(`orange-block-${b.id}`);
+          if(el) {
+            el.style.transition = `top ${animDuration}ms ease-out, left ${animDuration}ms ease-out, background-color ${animDuration}ms ease`;
+            el.style.top = getPixel(b.r) + 'px';
+            el.style.left = getPixel(b.c) + 'px';
+            if (targetBlueBlocks.some(tb => tb.r === b.r && tb.c === b.c)) {
+              el.classList.add('on-target');
+            } else {
+              el.classList.remove('on-target');
+            }
+          }
+        });
+        setTimeout(() => {
+          isAnimating = false;
+          checkWin();
+        }, animDuration);
+      } else {
+        draw();
+        setTimeout(checkWin, 50);
+      }
+    }
+  }
+
+  function undo() {
+    if (isEditMode || document.getElementById('win-modal').style.display === 'flex' || isAnimating) return;
+    if (history.length > 0) {
+      let lastState = history.pop();
+      orangeBlocks = cloneBlocks(lastState.orange);
+      stepCount = lastState.step;
+      draw();
+    }
+  }
+
+  function resetLevel() {
+    if (isAnimating) return;
+    orangeBlocks = cloneBlocks(initialOrangeBlocks);
+    walls = [...initialWalls];
+    stepCount = 0;
+    history = [];
+    draw();
+  }
+
+  function saveCurrentLevelToHistory() {
+    if (initialOrangeBlocks.length === 0 || isEditMode) return;
+    let isDuplicate = savedLevels.some(lvl => 
+      JSON.stringify(lvl.walls) === JSON.stringify(initialWalls) &&
+      JSON.stringify(lvl.orange.map(b => ({r: b.r, c: b.c}))) === JSON.stringify(initialOrangeBlocks.map(b => ({r: b.r, c: b.c})))
+    );
+
+    if (!isDuplicate) {
+      savedLevels.push({
+        orange: cloneBlocks(initialOrangeBlocks),
+        blue: cloneBlocks(targetBlueBlocks),
+        walls: [...initialWalls],
+        optimal: cachedOptimalSteps 
+      });
+      let select = document.getElementById('history-select');
+      let opt = document.createElement('option');
+      opt.value = savedLevels.length - 1;
+      opt.innerText = `關卡 ${savedLevels.length} (${document.getElementById('difficulty-select').value.toUpperCase()})`;
+      select.appendChild(opt);
+    }
+  }
+
+  function loadSelectedHistory(index) {
+    if(isAnimating) return;
+    let idx = parseInt(index);
+    if (idx >= 0 && idx < savedLevels.length) {
+      if(isEditMode) toggleEditMode();
+      let lvl = savedLevels[idx];
+      initialOrangeBlocks = cloneBlocks(lvl.orange);
+      targetBlueBlocks = cloneBlocks(lvl.blue);
+      initialWalls = [...lvl.walls];
+      cachedOptimalSteps = lvl.optimal; 
+      resetLevel();
+    }
+    document.getElementById('history-select').value = "-1";
+  }
+
+  function checkWin() {
+    let oStr = orangeBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
+    let bStr = targetBlueBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
+    if (oStr === bStr) {
+      document.getElementById('modal-step-text').innerText = `你用了 ${stepCount} 步成功通關！`;
+      document.getElementById('modal-optimal-text').innerText = `電腦完美解法最少只需：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
+      document.getElementById('win-modal').style.display = 'flex';
+      saveCurrentLevelToHistory();
+    }
+  }
+
+  function triggerNextLevel() {
+    if(isAnimating) return;
+    saveCurrentLevelToHistory();
+    generateLevel();
+  }
+
+  function closeModalAndReplay() {
+    document.getElementById('win-modal').style.display = 'none';
+    resetLevel();
+  }
+
+  function closeModalAndNext() {
+    document.getElementById('win-modal').style.display = 'none';
+    generateLevel();
+  }
+
+  // ==== 問題 1 解決方案：新增動態生成隨機六格連通形狀的函式 ====
+  function generateRandomHexominoOffsets() {
+    const numBlocks = 6;
+    let blocks = [{r: 0, c: 0}];
+    let set = new Set(["0,0"]);
+
+    while (blocks.length < numBlocks) {
+      // 找出所有與當前拼塊相鄰的空位
+      let possibleNeighbors = [];
+      for (let b of blocks) {
+        const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+        for (let d of dirs) {
+          let nr = b.r + d[0];
+          let nc = b.c + d[1];
+          let key = `${nr},${nc}`;
+          if (!set.has(key)) possibleNeighbors.push({r: nr, c: nc});
+        }
+      }
+      // 從空位中隨機選一個加入
+      if (possibleNeighbors.length === 0) break; 
+      let nextBlock = possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
+      blocks.push(nextBlock);
+      set.add(`${nextBlock.r},${nextBlock.c}`);
+    }
+
+    // 將座標標準化 (確保最小 r 和 c 為 0)，這步是為了方便尋找起點 root
+    let minR = Math.min(...blocks.map(b => b.r));
+    let minC = Math.min(...blocks.map(b => b.c));
+    return blocks.map(b => [b.r - minR, b.c - minC]);
+  }
+
+  // ==== 升級版地圖生成演算法：正向拓撲生成 + 隨機形狀 + 不重疊檢查 ====
+  function generateLevel() {
+    if(isEditMode) toggleEditMode();
+    document.getElementById('step-counter').innerText = 'AI 運算中...';
+    
+    let diff = document.getElementById('difficulty-select').value;
+    // 微調步數範圍以適應隨機形狀
+    let minSteps = 5, maxSteps = 7, numWalls = 4;
+    if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
+    else if (diff === 'hard') { minSteps = 14; maxSteps = 20; numWalls = 8; }
+
+    setTimeout(() => {
+      let maxMapAttempts = 100; // 增加地圖生成嘗試次數，因為不重疊條件變嚴格了
+      
+      for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
+        // 1. 隨機生成牆壁
+        let currentWalls = [];
+        while (currentWalls.length < numWalls) {
+          let wr = Math.floor(Math.random() * 8);
+          let wc = Math.floor(Math.random() * 8);
+          if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
+        }
+        
+        // ==== 問題 1 修改處：呼叫函式生成隨機形狀Offsets ====
+        const currentOffsets = generateRandomHexominoOffsets();
+
+        // 2. 隨機放置起點 root 座標，並建立起點狀態
+        // 根據隨機形狀的大小，調整起點可以放的範圍，避免超出棋盤
+        let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
+        let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
+        let sr = Math.floor(Math.random() * (8 - shapeRows + 1));
+        let sc = Math.floor(Math.random() * (8 - shapeCols + 1));
+
+        let startBlocks = [];
+        let validStart = true;
+        for (let i = 0; i < currentOffsets.length; i++) {
+          let r = sr + currentOffsets[i][0];
+          let c = sc + currentOffsets[i][1];
+          // 如果形狀位置疊到牆壁，這張地圖作廢，重新來
+          if (currentWalls.some(w => w[0] === r && w[1] === c)) { validStart = false; break; }
+          startBlocks.push({ id: i, r, c });
+        }
+        if (!validStart) continue;
+
+        // 3. 從起點進行 BFS 正向搜尋
+        let serialize = (b) => b.map(x => (x.r << 3) | x.c).sort((x, y) => x - y).join(',');
+        let startStr = serialize(startBlocks);
+        
+        let queue = [{ blocks: startBlocks, steps: 0 }];
+        let visited = new Set([startStr]);
+        let candidates = [];
+        
+        let nodesSearched = 0;
+        let maxNodes = 15000; 
+        let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+
+        while (queue.length > 0 && nodesSearched < maxNodes) {
+          let curr = queue.shift();
+          nodesSearched++;
+          
+          if (curr.steps >= minSteps && curr.steps <= maxSteps) {
+            candidates.push(curr);
+          }
+          
+          if (curr.steps >= maxSteps) continue; 
+
+          for (let d of dirs) {
+            let nextBlocks = cloneBlocks(curr.blocks);
+            let moved = moveGroup(nextBlocks, d[0], d[1], currentWalls);
+            if (moved) {
+              let key = serialize(nextBlocks);
+              if (!visited.has(key)) {
+                visited.add(key);
+                queue.push({ blocks: nextBlocks, steps: curr.steps + 1 });
+              }
+            }
+          }
+        }
+
+        // 4. 從候選池中挑選目標並進行「不重疊」檢查
+        if (candidates.length > 0) {
+          // 打亂候選者順序，隨機挑選
+          for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+          }
+
+          let success = false;
+          // 嘗試在候選者中找到一個不與起點重疊的狀態
+          for (let targetChoice of candidates) {
+            // ==== 問題 2 解決方案：實作座標不重疊檢查機制 ====
+            let hasOverlap = false;
+            // 建立起點座標集合以供快速比對
+            const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
+            
+            for (let tb of targetChoice.blocks) {
+              // 檢查目標格子座標是否在起點集合中
+              if (startCoords.has(`${tb.r},${tb.c}`)) {
+                hasOverlap = true; // 發生重疊
+                break;
+              }
+            }
+
+            if (!hasOverlap) {
+              // 成功找到不重疊且符合步數的目的地
+              initialOrangeBlocks = cloneBlocks(startBlocks);
+              targetBlueBlocks = cloneBlocks(targetChoice.blocks); 
+              initialWalls = currentWalls;
+              walls = [...currentWalls];
+              cachedOptimalSteps = targetChoice.steps;
+              resetLevel();
+              success = true;
+              break; // 跳出候選者迴圈
+            }
+          }
+          if (success) return; // 成功生成關卡，跳出嘗試地圖迴圈
+        }
+      }
+      
+      // 如果試了 100 次都沒有不重疊的，只好用最後一次生成的 (雖然這張可能重疊)
+      // 這通常是保底機制，正常情況下不會走到這裡
+      alert('地圖生成條件過於嚴格，AI 重新調配中，請按換一關！');
+      document.getElementById('step-counter').innerText = '請按換一關';
+    }, 50);
+  }
+
+  function toggleEditMode() {
+    if (isAnimating) return;
+    isEditMode = !isEditMode;
+    const toolbar = document.getElementById('editor-toolbar');
+    const editBtn = document.getElementById('btn-edit-mode');
+    const cells = document.querySelectorAll('.cell');
+
+    if (isEditMode) {
+      toolbar.style.display = 'flex';
+      editBtn.innerText = '❌ 放棄';
+      editBtn.style.backgroundColor = '#a63d3d';
+      cells.forEach(c => c.classList.add('edit-hover'));
+    } else {
+      toolbar.style.display = 'none';
+      editBtn.innerText = '🛠️ 設計';
+      editBtn.style.backgroundColor = '#5c3da6';
+      cells.forEach(c => c.classList.remove('edit-hover'));
+      resetLevel();
+    }
+  }
+
+  function setTool(tool) {
+    currentEditTool = tool;
+    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`btn-tool-${tool}`).classList.add('active');
+  }
+
+  function handleCellClick(r, c) {
+    if (!isEditMode) return;
+    let hadWall = initialWalls.some(w => w[0] === r && w[1] === c);
+    let hadStart = initialOrangeBlocks.some(b => b.r === r && b.c === c);
+    let hadTarget = targetBlueBlocks.some(b => b.r === r && b.c === c);
+
+    if ((currentEditTool === 'wall' && hadWall) || 
+        (currentEditTool === 'start' && hadStart) || 
+        (currentEditTool === 'target' && hadTarget)) {
+      initialWalls = initialWalls.filter(w => w[0] !== r || w[1] !== c);
+      initialOrangeBlocks = initialOrangeBlocks.filter(b => b.r !== r || b.c !== c);
+      targetBlueBlocks = targetBlueBlocks.filter(b => b.r !== r || b.c !== c);
+      resetLevel(); return;
+    }
+
+    initialWalls = initialWalls.filter(w => w[0] !== r || w[1] !== c);
+    initialOrangeBlocks = initialOrangeBlocks.filter(b => b.r !== r || b.c !== c);
+    targetBlueBlocks = targetBlueBlocks.filter(b => b.r !== r || b.c !== c);
+
+    if (currentEditTool === 'wall') initialWalls.push([r, c]);
+    else if (currentEditTool === 'start') initialOrangeBlocks.push({ id: `custom-${Date.now()}-${Math.floor(Math.random()*1000)}`, r, c });
+    else if (currentEditTool === 'target') targetBlueBlocks.push({ r, c });
+    resetLevel();
+  }
+
+  function clearEditor() {
+    initialWalls = []; initialOrangeBlocks = []; targetBlueBlocks = [];
+    resetLevel();
+  }
+
+  function finishEditing() {
+    if (initialOrangeBlocks.length === 0 || targetBlueBlocks.length === 0) {
+      alert('必須至少放置一個橘起點和藍終點！'); return;
+    }
+    if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
+      alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
+    }
+    document.getElementById('step-counter').innerText = 'AI 驗證中...';
+    setTimeout(() => {
+      let trueOptimal = findOptimalSteps(initialOrangeBlocks, targetBlueBlocks, initialWalls);
+      if (trueOptimal === -1) {
+        alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
+        cachedOptimalSteps = -1;
+      } else {
+        alert(`驗證成功！最優解需要：${trueOptimal} 步！`);
+        cachedOptimalSteps = trueOptimal; 
+      }
+      toggleEditMode();
+    }, 50);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'w', 'W'].includes(e.key)) { move(-1, 0); e.preventDefault(); }
+    if (['ArrowDown', 's', 'S'].includes(e.key)) { move(1, 0); e.preventDefault(); }
+    if (['ArrowLeft', 'a', 'A'].includes(e.key)) { move(0, -1); e.preventDefault(); }
+    if (['ArrowRight', 'd', 'D'].includes(e.key)) { move(0, 1); e.preventDefault(); }
+    if (['z', 'Z'].includes(e.key)) undo();
+    if (['r', 'R'].includes(e.key)) resetLevel();
+  });
+
+  let touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, {passive: false});
+
+  document.addEventListener('touchend', e => {
+    let dx = e.changedTouches[0].screenX - touchStartX;
+    let dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) move(0, dx > 0 ? 1 : -1);
+    else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) move(dy > 0 ? 1 : -1, 0);
+  }, {passive: false});
+
+  document.addEventListener('touchmove', e => {
+    if(!['BUTTON', 'SELECT'].includes(e.target.tagName)) e.preventDefault();
+  }, {passive: false});
+
+  window.onload = initBoard;
+</script>
+</body>
+</html>
