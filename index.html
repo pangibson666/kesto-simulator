@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.72</title>
+<title>Kesto 模擬器 V1.82</title>
 <style>
   body {
     background-color: #121212;
@@ -26,7 +26,7 @@
     align-items: center;
     transform-origin: center center; 
     width: 380px;  
-    height: 520px; 
+    height: 550px; /* 微調高度以容納複製/匯入按鈕 */
   }
 
   .header {
@@ -174,6 +174,11 @@
         <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
       </div>
     </div>
+    <!-- 新增：地圖分享控制列 -->
+    <div style="display:flex; gap:5px; width:100%; justify-content:space-between; margin-top:2px;">
+      <button onclick="copyMapText()" style="flex:1; background-color:#3a86c8; padding: 4px 6px; font-size:12px;">📋 複製地圖代碼</button>
+      <button onclick="importMapText()" style="flex:1; background-color:#555; padding: 4px 6px; font-size:12px;">📥 匯入地圖代碼</button>
+    </div>
   </div>
 
   <div id="editor-toolbar">
@@ -230,7 +235,7 @@
   function adjustScale() {
     const container = document.getElementById('app-container');
     const baseWidth = 380;  
-    const baseHeight = 520; 
+    const baseHeight = 550; 
     
     const scaleX = window.innerWidth / baseWidth;
     const scaleY = window.innerHeight / baseHeight;
@@ -328,10 +333,7 @@
     return moved;
   }
 
-  // ==========================================
   // 極速版：雙向廣度優先搜尋 (Bidirectional BFS)
-  // 解決 14~20+ 步深層地圖算到當機的問題
-  // ==========================================
   function findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls) {
     const getBigIntKey = (b) => {
       let key = 0n;
@@ -348,7 +350,6 @@
     let queueA = [ { blocks: cloneBlocks(startBlocks), steps: 0 } ];
     let queueB = [ { blocks: cloneBlocks(targetBlocks), steps: 0 } ];
     
-    // 使用指標代替 shift()，JS 陣列操作效率直接提升百倍
     let headA = 0, headB = 0;
 
     let visitedA = new Map(); visitedA.set(startKey, 0);
@@ -359,17 +360,15 @@
     let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
     while (headA < queueA.length && headB < queueB.length && nodes < maxNodes) {
-      // 交替擴展，確保兩邊進度平衡
-      
-      // 1. 擴展從起點出發的一步 (Queue A)
+      // 1. 擴展 Queue A
       let currA = queueA[headA++];
       nodes++;
-      if (currA.steps < 15) { // 雙向各探索 15 步，總計可解 30 步！
+      if (currA.steps < 15) { 
         for (let d of dirs) {
           let next = cloneBlocks(currA.blocks);
           if (moveGroup(next, d[0], d[1], currentWalls)) {
             let key = getBigIntKey(next);
-            if (visitedB.has(key)) return currA.steps + 1 + visitedB.get(key); // 兩端碰頭，回傳總步數
+            if (visitedB.has(key)) return currA.steps + 1 + visitedB.get(key); 
             if (!visitedA.has(key)) {
               visitedA.set(key, currA.steps + 1);
               queueA.push({ blocks: next, steps: currA.steps + 1 });
@@ -378,7 +377,7 @@
         }
       }
 
-      // 2. 擴展從終點逆推的一步 (Queue B)
+      // 2. 擴展 Queue B
       let currB = queueB[headB++];
       nodes++;
       if (currB.steps < 15) {
@@ -386,7 +385,7 @@
           let next = cloneBlocks(currB.blocks);
           if (moveGroup(next, d[0], d[1], currentWalls)) {
             let key = getBigIntKey(next);
-            if (visitedA.has(key)) return currB.steps + 1 + visitedA.get(key); // 兩端碰頭
+            if (visitedA.has(key)) return currB.steps + 1 + visitedA.get(key); 
             if (!visitedB.has(key)) {
               visitedB.set(key, currB.steps + 1);
               queueB.push({ blocks: next, steps: currB.steps + 1 });
@@ -395,7 +394,7 @@
         }
       }
     }
-    return -1; // 無解或過度極端
+    return -1; 
   }
 
   function move(dr, dc) {
@@ -497,7 +496,7 @@
     let bStr = targetBlueBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
     if (oStr === bStr) {
       document.getElementById('modal-step-text').innerText = `你用了 ${stepCount} 步成功通關！`;
-      document.getElementById('modal-optimal-text').innerText = `挑戰目標：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
+      document.getElementById('modal-optimal-text').innerText = `AI 參考步數：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
       document.getElementById('win-modal').style.display = 'flex';
       saveCurrentLevelToHistory();
     }
@@ -549,11 +548,10 @@
   // 隨機漫步 + 雙向BFS認證機制
   function generateLevel() {
     if(isEditMode) toggleEditMode();
-    document.getElementById('step-counter').innerText = '運算中...';
+    document.getElementById('step-counter').innerText = 'AI 運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
     
-    // 完美的恢復原版難度設定！
     let minSteps = 5, maxSteps = 7, numWalls = 4;
     if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
     else if (diff === 'hard') { minSteps = 14; maxSteps = 20; numWalls = 8; }
@@ -592,10 +590,9 @@
         let targetBlocks = cloneBlocks(startBlocks);
         let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
         let walkCount = 0;
-        let targetWalks = maxSteps * 3; // 為了達成深層步數，走超遠 (例如困難模式走 60 步)
+        let targetWalks = maxSteps * 3; 
         let lastDirIdx = -1;
 
-        // 隨機走但刻意避免立刻回頭，強迫方塊往深處鑽
         for(let w = 0; w < 150 && walkCount < targetWalks; w++) {
             let possibleDirs = [0, 1, 2, 3].filter(i => {
                 if (lastDirIdx === 0 && i === 1) return false;
@@ -604,7 +601,7 @@
                 if (lastDirIdx === 3 && i === 2) return false;
                 return true;
             });
-            possibleDirs.sort(() => Math.random() - 0.5); // 隨機打亂方向
+            possibleDirs.sort(() => Math.random() - 0.5); 
             
             let moved = false;
             for(let i of possibleDirs) {
@@ -618,7 +615,7 @@
                     break;
                 }
             }
-            if(!moved) lastDirIdx = -1; // 卡死就解除限制
+            if(!moved) lastDirIdx = -1; 
         }
 
         // 4. 重疊檢查
@@ -635,7 +632,6 @@
         // 5. 雙向 BFS 驗證真實最少步數
         let optimal = findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls);
         
-        // 驗證是否落在我們要求的神級難度區間
         if (optimal >= minSteps && optimal <= maxSteps) {
           initialOrangeBlocks = cloneBlocks(startBlocks);
           targetBlueBlocks = cloneBlocks(targetBlocks); 
@@ -649,8 +645,118 @@
       }
       
       if (!success) {
-        // 如果依然極端倒楣沒塞中，不要跳警告，默默再重試一輪
         generateLevel();
+      }
+    }, 50);
+  }
+
+  // ==========================================
+  // 新增功能：將當前地圖資料複製成 8x8 代碼字串
+  // 0=空格, 1=障礙物, 2=方塊(橘起點), 3=目的地(藍終點)
+  // ==========================================
+  function copyMapText() {
+    if (initialOrangeBlocks.length === 0 && targetBlueBlocks.length === 0 && initialWalls.length === 0) {
+      alert("目前沒有可導出的地圖資料！");
+      return;
+    }
+
+    // 初始化 8x8 的二維陣列
+    let grid = Array.from({ length: 8 }, () => Array(8).fill(0));
+
+    // 1. 填入牆壁 (1)
+    initialWalls.forEach(([r, c]) => {
+      if (r >= 0 && r < 8 && c >= 0 && c < 8) grid[r][c] = 1;
+    });
+
+    // 2. 填入藍終點 (3)
+    targetBlueBlocks.forEach(b => {
+      if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 3;
+    });
+
+    // 3. 填入橘起點 (2) -> 起點蓋在終點上方
+    initialOrangeBlocks.forEach(b => {
+      if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 2;
+    });
+
+    // 組合文字
+    let mapStr = grid.map(row => row.join('')).join('\n');
+
+    // 寫入剪貼簿
+    navigator.clipboard.writeText(mapStr).then(() => {
+      alert("地圖代碼已成功複製到剪貼簿！\n\n" + mapStr);
+    }).catch(() => {
+      // 備用複製方案 (相容不支援 navigator.clipboard 的瀏覽器)
+      let textArea = document.createElement("textarea");
+      textArea.value = mapStr;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        alert("地圖代碼已成功複製到剪貼簿！\n\n" + mapStr);
+      } catch (err) {
+        alert("複製失敗，請手動複製以下地圖代碼：\n\n" + mapStr);
+      }
+      document.body.removeChild(textArea);
+    });
+  }
+
+  // ==========================================
+  // 新增功能：匯入 8x8 地圖代碼字串並進行 AI 步數驗證
+  // ==========================================
+  function importMapText() {
+    let input = prompt("請貼上 8x8 地圖代碼 (共 64 位數字)：");
+    if (!input) return;
+
+    // 清除空白字元及換行
+    let cleaned = input.replace(/\s+/g, '');
+    if (cleaned.length !== 64 || !/^[0-3]+$/.test(cleaned)) {
+      alert("匯入失敗！請確保代碼是 8x8 共 64 位數（只能含有數字 0、1、2、3）。");
+      return;
+    }
+
+    let tempWalls = [];
+    let tempStart = [];
+    let tempTarget = [];
+    let orangeCount = 0;
+
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        let val = cleaned[r * 8 + c];
+        if (val === '1') {
+          tempWalls.push([r, c]);
+        } else if (val === '2') {
+          tempStart.push({ id: `imported-${Date.now()}-${orangeCount++}`, r, c });
+        } else if (val === '3') {
+          tempTarget.push({ r, c });
+        }
+      }
+    }
+
+    if (tempStart.length === 0 || tempTarget.length === 0) {
+      alert("匯入失敗！地圖中必須至少含有一個橘起點(2)與藍終點(3)。");
+      return;
+    }
+    if (tempStart.length !== tempTarget.length) {
+      alert(`⚠️ 注意：起點數量 (${tempStart.length}) 與終點數量 (${tempTarget.length}) 不符，可能無法正常過關。`);
+    }
+
+    document.getElementById('step-counter').innerText = 'AI 驗證中...';
+    
+    // 背景執行雙向快速步數演算
+    setTimeout(() => {
+      let trueOptimal = findOptimalStepsBiDir(tempStart, tempTarget, tempWalls);
+      
+      initialWalls = tempWalls;
+      initialOrangeBlocks = tempStart;
+      targetBlueBlocks = tempTarget;
+      cachedOptimalSteps = trueOptimal;
+
+      resetLevel(); // 渲染地圖
+      
+      if (trueOptimal === -1) {
+        alert("匯入成功！但 AI 評估此地圖可能極度困難或無解，請嘗試挑戰看看！");
+      } else {
+        alert(`匯入成功！AI 參考步數為：${trueOptimal} 步！`);
       }
     }, 50);
   }
@@ -719,14 +825,14 @@
     if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
       alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
     }
-    document.getElementById('step-counter').innerText = '驗證中...';
+    document.getElementById('step-counter').innerText = 'AI 驗證中...';
     setTimeout(() => {
       let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
       if (trueOptimal === -1) {
         alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
         cachedOptimalSteps = -1;
       } else {
-        alert(`驗證成功！最佳步數 ≤ ${trueOptimal} 步！`);
+        alert(`驗證成功！AI 參考步數：${trueOptimal} 步！`);
         cachedOptimalSteps = trueOptimal; 
       }
       toggleEditMode();
