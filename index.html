@@ -3,20 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto Clone - 隨機形狀不重疊版</title>
+<title>Kesto 模擬器</title>
 <style>
   body {
     background-color: #121212;
     color: #ffffff;
     font-family: sans-serif;
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    justify-content: center; /* 讓遊戲水平置中 */
+    align-items: center;     /* 讓遊戲垂直置中 */
+    min-height: 100vh;       /* 確保背景填滿整個螢幕高度 */
     margin: 0;
-    padding: 15px;
+    padding: 0;
     touch-action: none;
     user-select: none;
+    overflow: hidden;        /* 隱藏縮放後可能產生的滾動條 */
   }
+
+  /* 新增外層容器的樣式 */
+  #app-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform-origin: center center; /* 以中心點為縮放基準 */
+    width: 380px;  /* 基礎寬度 */
+    height: 520px; /* 基礎高度 */
+  }
+
   .header {
     display: flex;
     flex-direction: column;
@@ -132,57 +145,60 @@
 </head>
 <body>
 
-<div class="header">
-  <div class="top-row">
-    <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
-    <div style="display:flex; gap:5px;">
-      <select id="anim-select" onchange="updateAnimSpeed()">
-        <option value="0">無動畫</option>
-        <option value="100">動畫: 快</option>
-        <option value="150" selected>動畫: 中</option>
-        <option value="300">動畫: 慢</option>
+<!-- 新增這個 app-container 將所有內容包住 -->
+<div id="app-container">
+  <div class="header">
+    <div class="top-row">
+      <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
+      <div style="display:flex; gap:5px;">
+        <select id="anim-select" onchange="updateAnimSpeed()">
+          <option value="0">無動畫</option>
+          <option value="100">動畫: 快</option>
+          <option value="150" selected>動畫: 中</option>
+          <option value="300">動畫: 慢</option>
+        </select>
+        <select id="difficulty-select" onchange="generateLevel()">
+          <option value="easy">簡單 (5-7步)</option>
+          <option value="medium" selected>普通 (8-13步)</option>
+          <option value="hard">困難 (14-20步🔥)</option>
+        </select>
+      </div>
+    </div>
+    <div class="controls-row">
+      <select id="history-select" onchange="loadSelectedHistory(this.value)">
+        <option value="-1">-- 歷史關卡 --</option>
       </select>
-      <select id="difficulty-select" onchange="generateLevel()">
-        <option value="easy">簡單 (5-7步)</option>
-        <option value="medium" selected>普通 (8-13步)</option>
-        <option value="hard">困難 (14-20步🔥)</option>
-      </select>
+      <div style="display:flex; gap:3px;">
+        <button onclick="undo()">⟲ 復原</button>
+        <button onclick="resetLevel()">↻ 重置</button>
+        <button id="btn-edit-mode" onclick="toggleEditMode()" style="background-color:#5c3da6;">🛠️ 設計</button>
+        <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
+      </div>
     </div>
   </div>
-  <div class="controls-row">
-    <select id="history-select" onchange="loadSelectedHistory(this.value)">
-      <option value="-1">-- 歷史關卡 --</option>
-    </select>
-    <div style="display:flex; gap:3px;">
-      <button onclick="undo()">⟲ 復原</button>
-      <button onclick="resetLevel()">↻ 重置</button>
-      <button id="btn-edit-mode" onclick="toggleEditMode()" style="background-color:#5c3da6;">🛠️ 設計</button>
-      <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
+
+  <div id="editor-toolbar">
+    <div class="tool-group">
+      <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
+      <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
+      <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
+    </div>
+    <div style="display:flex; gap:4px;">
+      <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
+      <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
     </div>
   </div>
-</div>
 
-<div id="editor-toolbar">
-  <div class="tool-group">
-    <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
-    <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
-    <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
-  </div>
-  <div style="display:flex; gap:4px;">
-    <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
-    <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
-  </div>
-</div>
-
-<div id="game-board">
-  <div id="win-modal" class="modal">
-    <div class="modal-content">
-      <div class="modal-title">太神啦！🎉</div>
-      <div id="modal-step-text" class="modal-text">你用了 0 步成功通關！</div>
-      <div id="modal-optimal-text" style="font-size:14px; color:#66e066; margin-bottom:15px;"></div>
-      <div class="modal-buttons">
-        <button class="btn-replay" onclick="closeModalAndReplay()">再玩一次</button>
-        <button class="btn-next" onclick="closeModalAndNext()">下一關</button>
+  <div id="game-board">
+    <div id="win-modal" class="modal">
+      <div class="modal-content">
+        <div class="modal-title">太神啦！🎉</div>
+        <div id="modal-step-text" class="modal-text">你用了 0 步成功通關！</div>
+        <div id="modal-optimal-text" style="font-size:14px; color:#66e066; margin-bottom:15px;"></div>
+        <div class="modal-buttons">
+          <button class="btn-replay" onclick="closeModalAndReplay()">再玩一次</button>
+          <button class="btn-next" onclick="closeModalAndNext()">下一關</button>
+        </div>
       </div>
     </div>
   </div>
@@ -194,8 +210,6 @@
   const GAP = 4;
   const PADDING = 10;
   
-  // 原本固定的 SHAPE_OFFSETS 已刪除，改用動態生成
-
   let initialOrangeBlocks = [];
   let targetBlueBlocks = []; 
   let initialWalls = [];
@@ -213,6 +227,26 @@
   let isAnimating = false;
   
   let cachedOptimalSteps = 0;
+
+  // 自動調整畫面縮放比例
+  function adjustScale() {
+    const container = document.getElementById('app-container');
+    const baseWidth = 380;  // 對應 CSS 裡的基礎寬度
+    const baseHeight = 520; // 對應 CSS 裡的基礎高度
+    
+    // 計算螢幕寬高與基礎寬高的比例 (乘以 0.95 是為了讓邊緣保留 5% 的留白)
+    const scaleX = window.innerWidth / baseWidth;
+    const scaleY = window.innerHeight / baseHeight;
+    let scale = Math.min(scaleX, scaleY) * 0.95;
+    
+    // 如果不希望在超大螢幕上放大得太誇張，可以設定一個最大縮放值 (例如 2.5 倍)
+    scale = Math.min(scale, 2.5); 
+    
+    container.style.transform = `scale(${scale})`;
+  }
+
+  // 當視窗大小改變時，重新計算縮放
+  window.addEventListener('resize', adjustScale);
 
   function initBoard() {
     const board = document.getElementById('game-board');
@@ -451,14 +485,12 @@
     generateLevel();
   }
 
-  // ==== 問題 1 解決方案：新增動態生成隨機六格連通形狀的函式 ====
   function generateRandomHexominoOffsets() {
     const numBlocks = 6;
     let blocks = [{r: 0, c: 0}];
     let set = new Set(["0,0"]);
 
     while (blocks.length < numBlocks) {
-      // 找出所有與當前拼塊相鄰的空位
       let possibleNeighbors = [];
       for (let b of blocks) {
         const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
@@ -469,35 +501,30 @@
           if (!set.has(key)) possibleNeighbors.push({r: nr, c: nc});
         }
       }
-      // 從空位中隨機選一個加入
       if (possibleNeighbors.length === 0) break; 
       let nextBlock = possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
       blocks.push(nextBlock);
       set.add(`${nextBlock.r},${nextBlock.c}`);
     }
 
-    // 將座標標準化 (確保最小 r 和 c 為 0)，這步是為了方便尋找起點 root
     let minR = Math.min(...blocks.map(b => b.r));
     let minC = Math.min(...blocks.map(b => b.c));
     return blocks.map(b => [b.r - minR, b.c - minC]);
   }
 
-  // ==== 升級版地圖生成演算法：正向拓撲生成 + 隨機形狀 + 不重疊檢查 ====
   function generateLevel() {
     if(isEditMode) toggleEditMode();
     document.getElementById('step-counter').innerText = 'AI 運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
-    // 微調步數範圍以適應隨機形狀
     let minSteps = 5, maxSteps = 7, numWalls = 4;
     if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
     else if (diff === 'hard') { minSteps = 14; maxSteps = 20; numWalls = 8; }
 
     setTimeout(() => {
-      let maxMapAttempts = 100; // 增加地圖生成嘗試次數，因為不重疊條件變嚴格了
+      let maxMapAttempts = 100; 
       
       for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
-        // 1. 隨機生成牆壁
         let currentWalls = [];
         while (currentWalls.length < numWalls) {
           let wr = Math.floor(Math.random() * 8);
@@ -505,11 +532,8 @@
           if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
         }
         
-        // ==== 問題 1 修改處：呼叫函式生成隨機形狀Offsets ====
         const currentOffsets = generateRandomHexominoOffsets();
 
-        // 2. 隨機放置起點 root 座標，並建立起點狀態
-        // 根據隨機形狀的大小，調整起點可以放的範圍，避免超出棋盤
         let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
         let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
         let sr = Math.floor(Math.random() * (8 - shapeRows + 1));
@@ -520,13 +544,11 @@
         for (let i = 0; i < currentOffsets.length; i++) {
           let r = sr + currentOffsets[i][0];
           let c = sc + currentOffsets[i][1];
-          // 如果形狀位置疊到牆壁，這張地圖作廢，重新來
           if (currentWalls.some(w => w[0] === r && w[1] === c)) { validStart = false; break; }
           startBlocks.push({ id: i, r, c });
         }
         if (!validStart) continue;
 
-        // 3. 從起點進行 BFS 正向搜尋
         let serialize = (b) => b.map(x => (x.r << 3) | x.c).sort((x, y) => x - y).join(',');
         let startStr = serialize(startBlocks);
         
@@ -561,32 +583,25 @@
           }
         }
 
-        // 4. 從候選池中挑選目標並進行「不重疊」檢查
         if (candidates.length > 0) {
-          // 打亂候選者順序，隨機挑選
           for (let i = candidates.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
           }
 
           let success = false;
-          // 嘗試在候選者中找到一個不與起點重疊的狀態
           for (let targetChoice of candidates) {
-            // ==== 問題 2 解決方案：實作座標不重疊檢查機制 ====
             let hasOverlap = false;
-            // 建立起點座標集合以供快速比對
             const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
             
             for (let tb of targetChoice.blocks) {
-              // 檢查目標格子座標是否在起點集合中
               if (startCoords.has(`${tb.r},${tb.c}`)) {
-                hasOverlap = true; // 發生重疊
+                hasOverlap = true; 
                 break;
               }
             }
 
             if (!hasOverlap) {
-              // 成功找到不重疊且符合步數的目的地
               initialOrangeBlocks = cloneBlocks(startBlocks);
               targetBlueBlocks = cloneBlocks(targetChoice.blocks); 
               initialWalls = currentWalls;
@@ -594,15 +609,13 @@
               cachedOptimalSteps = targetChoice.steps;
               resetLevel();
               success = true;
-              break; // 跳出候選者迴圈
+              break; 
             }
           }
-          if (success) return; // 成功生成關卡，跳出嘗試地圖迴圈
+          if (success) return; 
         }
       }
       
-      // 如果試了 100 次都沒有不重疊的，只好用最後一次生成的 (雖然這張可能重疊)
-      // 這通常是保底機制，正常情況下不會走到這裡
       alert('地圖生成條件過於嚴格，AI 重新調配中，請按換一關！');
       document.getElementById('step-counter').innerText = '請按換一關';
     }, 50);
@@ -712,7 +725,11 @@
     if(!['BUTTON', 'SELECT'].includes(e.target.tagName)) e.preventDefault();
   }, {passive: false});
 
-  window.onload = initBoard;
+  // 修改這裡：載入時同時呼叫 initBoard() 和 adjustScale()
+  window.onload = () => {
+    initBoard();
+    adjustScale();
+  };
 </script>
 </body>
 </html>
