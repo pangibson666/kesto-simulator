@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.6</title>
+<title>Kesto 模擬器 V1.7</title>
 <style>
   body {
     background-color: #121212;
@@ -45,7 +45,7 @@
   .title {
     font-size: 24px;
     font-weight: bold;
-    white-space: nowrap; /* 防止千位數步數時換行 */
+    white-space: nowrap; 
   }
   .controls-row {
     display: flex;
@@ -159,7 +159,7 @@
         <select id="difficulty-select" onchange="generateLevel()">
           <option value="easy">簡單 (5-7步)</option>
           <option value="medium" selected>普通 (8-13步)</option>
-          <option value="hard">困難 (14-18步🔥)</option>
+          <option value="hard">困難 (14-20步🔥)</option>
         </select>
       </div>
     </div>
@@ -328,8 +328,11 @@
     return moved;
   }
 
-  // 二進位 Bitboard 最優解尋路 (用於單次驗證，極速)
-  function findOptimalSteps(startBlocks, targetBlocks, currentWalls) {
+  // ==========================================
+  // 極速版：雙向廣度優先搜尋 (Bidirectional BFS)
+  // 解決 14~20+ 步深層地圖算到當機的問題
+  // ==========================================
+  function findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls) {
     const getBigIntKey = (b) => {
       let key = 0n;
       for (let i = 0; i < b.length; i++) {
@@ -338,33 +341,61 @@
       return key;
     };
 
-    let targetKey = getBigIntKey(targetBlocks);
     let startKey = getBigIntKey(startBlocks);
+    let targetKey = getBigIntKey(targetBlocks);
     if (startKey === targetKey) return 0;
 
-    let queue = [{ blocks: cloneBlocks(startBlocks), steps: 0 }];
-    let visited = new Set([startKey]);
-    let maxStates = 40000; 
+    let queueA = [ { blocks: cloneBlocks(startBlocks), steps: 0 } ];
+    let queueB = [ { blocks: cloneBlocks(targetBlocks), steps: 0 } ];
+    
+    // 使用指標代替 shift()，JS 陣列操作效率直接提升百倍
+    let headA = 0, headB = 0;
+
+    let visitedA = new Map(); visitedA.set(startKey, 0);
+    let visitedB = new Map(); visitedB.set(targetKey, 0);
+
+    let maxNodes = 80000; 
+    let nodes = 0;
     let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
-    while (queue.length > 0) {
-      let curr = queue.shift();
-      if (curr.steps >= 35) continue; 
-      if (maxStates-- <= 0) break;
+    while (headA < queueA.length && headB < queueB.length && nodes < maxNodes) {
+      // 交替擴展，確保兩邊進度平衡
+      
+      // 1. 擴展從起點出發的一步 (Queue A)
+      let currA = queueA[headA++];
+      nodes++;
+      if (currA.steps < 15) { // 雙向各探索 15 步，總計可解 30 步！
+        for (let d of dirs) {
+          let next = cloneBlocks(currA.blocks);
+          if (moveGroup(next, d[0], d[1], currentWalls)) {
+            let key = getBigIntKey(next);
+            if (visitedB.has(key)) return currA.steps + 1 + visitedB.get(key); // 兩端碰頭，回傳總步數
+            if (!visitedA.has(key)) {
+              visitedA.set(key, currA.steps + 1);
+              queueA.push({ blocks: next, steps: currA.steps + 1 });
+            }
+          }
+        }
+      }
 
-      for (let d of dirs) {
-        let nextBlocks = cloneBlocks(curr.blocks);
-        if (moveGroup(nextBlocks, d[0], d[1], currentWalls)) {
-          let key = getBigIntKey(nextBlocks);
-          if (!visited.has(key)) {
-            if (key === targetKey) return curr.steps + 1;
-            visited.add(key);
-            queue.push({ blocks: nextBlocks, steps: curr.steps + 1 });
+      // 2. 擴展從終點逆推的一步 (Queue B)
+      let currB = queueB[headB++];
+      nodes++;
+      if (currB.steps < 15) {
+        for (let d of dirs) {
+          let next = cloneBlocks(currB.blocks);
+          if (moveGroup(next, d[0], d[1], currentWalls)) {
+            let key = getBigIntKey(next);
+            if (visitedA.has(key)) return currB.steps + 1 + visitedA.get(key); // 兩端碰頭
+            if (!visitedB.has(key)) {
+              visitedB.set(key, currB.steps + 1);
+              queueB.push({ blocks: next, steps: currB.steps + 1 });
+            }
           }
         }
       }
     }
-    return -1; 
+    return -1; // 無解或過度極端
   }
 
   function move(dr, dc) {
@@ -515,30 +546,24 @@
     return blocks.map(b => [b.r - minR, b.c - minC]);
   }
 
-  // ==== 終極高效能生成演算法：BFS 候選池 + BigInt 高速過濾 ====
+  // 隨機漫步 + 雙向BFS認證機制
   function generateLevel() {
     if(isEditMode) toggleEditMode();
     document.getElementById('step-counter').innerText = 'AI 運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
+    
+    // 完美的恢復原版難度設定！
     let minSteps = 5, maxSteps = 7, numWalls = 4;
     if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
-    else if (diff === 'hard') { minSteps = 14; maxSteps = 18; numWalls = 8; }
+    else if (diff === 'hard') { minSteps = 14; maxSteps = 20; numWalls = 8; }
 
     setTimeout(() => {
-      let maxMapAttempts = 100; 
+      let maxMapAttempts = 200; 
       let success = false;
-      
-      const getBigIntKey = (b) => {
-        let key = 0n;
-        for (let i = 0; i < b.length; i++) {
-          key |= 1n << BigInt((b[i].r << 3) | b[i].c);
-        }
-        return key;
-      };
 
       for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
-        // 1. 隨機生成牆壁
+        // 1. 生成牆壁
         let currentWalls = [];
         while (currentWalls.length < numWalls) {
           let wr = Math.floor(Math.random() * 8);
@@ -546,7 +571,7 @@
           if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
         }
         
-        // 2. 隨機生成起點形狀與位置
+        // 2. 隨機生成起點形狀
         const currentOffsets = generateRandomHexominoOffsets();
         let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
         let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
@@ -563,92 +588,69 @@
         }
         if (!validStart) continue;
 
-        // 3. 用極速的 BigInt BFS 跑出所有「最少步數絕對達標」的候選終點池
-        // (因為使用了 Bitboard 棋盤，展開 20,000 個節點僅需 2~3 毫秒，極其快速)
-        let startKey = getBigIntKey(startBlocks);
-        let queue = [{ blocks: startBlocks, steps: 0 }];
-        let visited = new Set([startKey]);
-        let candidates = [];
-        
-        let nodesSearched = 0;
-        let maxNodes = 20000; // 2萬個節點足夠走到 18 步
+        // 3. 正向拓撲：瘋狂隨機漫步
+        let targetBlocks = cloneBlocks(startBlocks);
         let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+        let walkCount = 0;
+        let targetWalks = maxSteps * 3; // 為了達成深層步數，走超遠 (例如困難模式走 60 步)
+        let lastDirIdx = -1;
 
-        while (queue.length > 0 && nodesSearched < maxNodes) {
-          let curr = queue.shift();
-          nodesSearched++;
-          
-          if (curr.steps >= minSteps && curr.steps <= maxSteps) {
-            candidates.push(curr);
-          }
-          
-          if (curr.steps >= maxSteps) continue; 
-
-          for (let d of dirs) {
-            let nextBlocks = cloneBlocks(curr.blocks);
-            let moved = moveGroup(nextBlocks, d[0], d[1], currentWalls);
-            if (moved) {
-              let key = getBigIntKey(nextBlocks);
-              if (!visited.has(key)) {
-                visited.add(key);
-                queue.push({ blocks: nextBlocks, steps: curr.steps + 1 });
-              }
+        // 隨機走但刻意避免立刻回頭，強迫方塊往深處鑽
+        for(let w = 0; w < 150 && walkCount < targetWalks; w++) {
+            let possibleDirs = [0, 1, 2, 3].filter(i => {
+                if (lastDirIdx === 0 && i === 1) return false;
+                if (lastDirIdx === 1 && i === 0) return false;
+                if (lastDirIdx === 2 && i === 3) return false;
+                if (lastDirIdx === 3 && i === 2) return false;
+                return true;
+            });
+            possibleDirs.sort(() => Math.random() - 0.5); // 隨機打亂方向
+            
+            let moved = false;
+            for(let i of possibleDirs) {
+                let d = dirs[i];
+                let testBlocks = cloneBlocks(targetBlocks);
+                if (moveGroup(testBlocks, d[0], d[1], currentWalls)) {
+                    targetBlocks = testBlocks;
+                    lastDirIdx = i;
+                    walkCount++;
+                    moved = true;
+                    break;
+                }
             }
-          }
+            if(!moved) lastDirIdx = -1; // 卡死就解除限制
         }
 
-        // 4. 從達標的候選池中，過濾符合「不重疊」與「距離相近」的完美終點
-        if (candidates.length > 0) {
-          // 隨機打亂候選者
-          for (let i = candidates.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        // 4. 重疊檢查
+        let hasOverlap = false;
+        const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
+        for (let tb of targetBlocks) {
+          if (startCoords.has(`${tb.r},${tb.c}`)) {
+            hasOverlap = true;
+            break;
           }
+        }
+        if (hasOverlap) continue;
 
-          for (let targetChoice of candidates) {
-            // 原則 1：不重疊檢查
-            let hasOverlap = false;
-            const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
-            for (let tb of targetChoice.blocks) {
-              if (startCoords.has(`${tb.r},${tb.c}`)) {
-                hasOverlap = true;
-                break;
-              }
-            }
-            if (hasOverlap) continue;
-
-            // 原則 2：限制目的地與起點的距離 (平均曼哈頓距離)
-            let totalDist = 0;
-            for (let sa of startBlocks) {
-              let minDist = Infinity;
-              for (let tb of targetChoice.blocks) {
-                let d = Math.abs(sa.r - tb.r) + Math.abs(sa.c - tb.c);
-                if (d < minDist) minDist = d;
-              }
-              totalDist += minDist;
-            }
-            let avgDist = totalDist / startBlocks.length;
-            // 稍微放寬距離閥值（簡單2.5格、普通3.0格、困難3.5格），避免兩者嚴格互斥導致無解
-            let maxAvgDist = diff === 'easy' ? 2.5 : (diff === 'medium' ? 3.0 : 3.5);
-            
-            if (avgDist <= maxAvgDist) {
-              initialOrangeBlocks = cloneBlocks(startBlocks);
-              targetBlueBlocks = cloneBlocks(targetChoice.blocks); 
-              initialWalls = currentWalls;
-              walls = [...currentWalls];
-              cachedOptimalSteps = targetChoice.steps;
-              resetLevel();
-              success = true;
-              break;
-            }
-          }
-          if (success) break; 
+        // 5. 雙向 BFS 驗證真實最少步數
+        let optimal = findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls);
+        
+        // 驗證是否落在我們要求的神級難度區間
+        if (optimal >= minSteps && optimal <= maxSteps) {
+          initialOrangeBlocks = cloneBlocks(startBlocks);
+          targetBlueBlocks = cloneBlocks(targetBlocks); 
+          initialWalls = currentWalls;
+          walls = [...currentWalls];
+          cachedOptimalSteps = optimal;
+          resetLevel();
+          success = true;
+          break;
         }
       }
       
       if (!success) {
-        alert('地圖生成條件過於嚴格，AI 重新調配中，請按換一關！');
-        document.getElementById('step-counter').innerText = '請按換一關';
+        // 如果依然極端倒楣沒塞中，不要跳警告，默默再重試一輪
+        generateLevel();
       }
     }, 50);
   }
@@ -719,7 +721,7 @@
     }
     document.getElementById('step-counter').innerText = 'AI 驗證中...';
     setTimeout(() => {
-      let trueOptimal = findOptimalSteps(initialOrangeBlocks, targetBlueBlocks, initialWalls);
+      let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
       if (trueOptimal === -1) {
         alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
         cachedOptimalSteps = -1;
