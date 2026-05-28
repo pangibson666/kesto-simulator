@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.7</title>
+<title>Kesto 模擬器 V1.71</title>
 <style>
   body {
     background-color: #121212;
@@ -497,7 +497,7 @@
     let bStr = targetBlueBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
     if (oStr === bStr) {
       document.getElementById('modal-step-text').innerText = `你用了 ${stepCount} 步成功通關！`;
-      document.getElementById('modal-optimal-text').innerText = `電腦完美解法最少只需：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
+      document.getElementById('modal-optimal-text').innerText = `挑戰目標：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
       document.getElementById('win-modal').style.display = 'flex';
       saveCurrentLevelToHistory();
     }
@@ -726,7 +726,7 @@
         alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
         cachedOptimalSteps = -1;
       } else {
-        alert(`驗證成功！最優解需要：${trueOptimal} 步！`);
+        alert(`驗證成功！最佳步數 ≤ ${trueOptimal} 步！`);
         cachedOptimalSteps = trueOptimal; 
       }
       toggleEditMode();
