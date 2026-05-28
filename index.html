@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.71</title>
+<title>Kesto 模擬器 V1.72</title>
 <style>
   body {
     background-color: #121212;
@@ -549,7 +549,7 @@
   // 隨機漫步 + 雙向BFS認證機制
   function generateLevel() {
     if(isEditMode) toggleEditMode();
-    document.getElementById('step-counter').innerText = 'AI 運算中...';
+    document.getElementById('step-counter').innerText = '運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
     
@@ -719,7 +719,7 @@
     if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
       alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
     }
-    document.getElementById('step-counter').innerText = 'AI 驗證中...';
+    document.getElementById('step-counter').innerText = '驗證中...';
     setTimeout(() => {
       let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
       if (trueOptimal === -1) {
