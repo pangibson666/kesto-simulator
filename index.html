@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- 移除 user-scalable=no，允許手動縮放 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kesto 模擬器 V1.93</title>
+<title>Kesto 模擬器 V1.94</title>
 <style>
   body {
     background-color: #121212;
@@ -821,4 +821,63 @@
   }
 
   function clearEditor() {
-    initialWalls = []; initialOrangeBloc
+    initialWalls = [];
+    initialOrangeBlocks = [];
+    targetBlueBlocks = [];
+    resetLevel();
+  }
+
+  function finishEditing() {
+    if (initialOrangeBlocks.length === 0 || targetBlueBlocks.length === 0) {
+      alert('必須至少放置一個橘起點和藍終點！'); return;
+    }
+    if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
+      alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
+    }
+    document.getElementById('step-counter').innerText = 'AI 驗證中...';
+    setTimeout(() => {
+      let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
+      if (trueOptimal === -1) {
+        alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
+        cachedOptimalSteps = -1;
+      } else {
+        alert(`驗證成功！最佳步數 ≤ ${trueOptimal} 步！`);
+        cachedOptimalSteps = trueOptimal; 
+      }
+      toggleEditMode();
+    }, 50);
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowUp', 'w', 'W'].includes(e.key)) { move(-1, 0); e.preventDefault(); }
+    if (['ArrowDown', 's', 'S'].includes(e.key)) { move(1, 0); e.preventDefault(); }
+    if (['ArrowLeft', 'a', 'A'].includes(e.key)) { move(0, -1); e.preventDefault(); }
+    if (['ArrowRight', 'd', 'D'].includes(e.key)) { move(0, 1); e.preventDefault(); }
+    if (['z', 'Z'].includes(e.key)) undo();
+    if (['r', 'R'].includes(e.key)) resetLevel();
+  });
+
+  let touchStartX = 0, touchStartY = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, {passive: false});
+
+  document.addEventListener('touchend', e => {
+    let dx = e.changedTouches[0].screenX - touchStartX;
+    let dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) move(0, dx > 0 ? 1 : -1);
+    else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) move(dy > 0 ? 1 : -1, 0);
+  }, {passive: false});
+
+  document.addEventListener('touchmove', e => {
+    if(!['BUTTON', 'SELECT'].includes(e.target.tagName)) e.preventDefault();
+  }, {passive: false});
+
+  window.onload = () => {
+    initBoard();
+    adjustScale();
+  };
+</script>
+</body>
+</html>
