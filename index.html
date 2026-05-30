@@ -2,9 +2,8 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<!-- 移除 user-scalable=no，允許手動縮放 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kesto 模擬器 V1.94</title>
+<title>Kesto 模擬器 V1.95</title>
 <style>
   body {
     background-color: #121212;
@@ -16,9 +15,10 @@
     min-height: 100vh;       
     margin: 0;
     padding: 0;
-    touch-action: auto; /* 允許手動縮放手勢 */
+    touch-action: auto; 
     user-select: none;
-    overflow: auto; /* 允許大圖時出現滾動條 */
+    overflow: auto; 
+    overscroll-behavior: none; /* 防止手機端上下滑動時產生橡皮筋回彈與畫面偏移 */
   }
 
   #app-container {
@@ -27,7 +27,7 @@
     align-items: center;
     transform-origin: center center; 
     width: 380px;  
-    height: 560px; /* 基礎高度 */
+    height: 560px; 
   }
 
   .header {
@@ -66,7 +66,6 @@
   button:active { background-color: #555; }
   select { outline: none; }
   
-  /* 編輯工具欄：移至地圖下方，微調邊距 */
   #editor-toolbar {
     display: none;
     background-color: #222;
@@ -95,6 +94,7 @@
     padding: 10px;
     border-radius: 8px;
     position: relative;
+    touch-action: none; /* 強制遊戲區域不可觸發網頁原生滾動，只交給腳本處理滑動 */
   }
   .cell {
     width: 40px;
@@ -145,7 +145,6 @@
   .btn-replay { background-color: #555; color: white; }
   .btn-next { background-color: #4287f5; color: white; }
 
-  /* 頁尾複製/匯入按鈕容器 */
   .footer-row {
     display: flex;
     gap: 5px;
@@ -158,20 +157,19 @@
 <body>
 
 <div id="app-container">
-  <!-- 上方控制列（乾淨相連） -->
   <div class="header">
     <div class="top-row">
       <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
       <div style="display:flex; gap:5px;">
         <select id="anim-select" onchange="updateAnimSpeed()">
           <option value="0">無動畫</option>
-          <option value="100">動畫: 快</option>
-          <option value="150" selected>動畫: 中</option>
+          <option value="100" selected>動畫: 快</option> <!-- 預設改為快 -->
+          <option value="150">動畫: 中</option>
           <option value="300">動畫: 慢</option>
         </select>
         <select id="difficulty-select" onchange="generateLevel()">
-          <option value="easy">簡單 (5-7步)</option>
-          <option value="medium" selected>普通 (8-13步)</option>
+          <option value="easy" selected>簡單 (5-7步)</option> <!-- 預設改為簡單 -->
+          <option value="medium">普通 (8-13步)</option>
           <option value="hard">困難 (14-20步🔥)</option>
         </select>
       </div>
@@ -189,7 +187,6 @@
     </div>
   </div>
 
-  <!-- 中間：地圖（位置不再變動） -->
   <div id="game-board">
     <div id="win-modal" class="modal">
       <div class="modal-content">
@@ -204,7 +201,6 @@
     </div>
   </div>
 
-  <!-- 下方：設計工具欄（隱藏/顯示時，不影響上方地圖的位置） -->
   <div id="editor-toolbar">
     <div class="tool-group">
       <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
@@ -217,7 +213,6 @@
     </div>
   </div>
 
-  <!-- 最下方：地圖分享控制列 -->
   <div class="footer-row">
     <button onclick="copyMapText()" style="flex:1; background-color:#3a86c8; padding: 6px; font-size:12px;">📋 複製地圖代碼</button>
     <button onclick="importMapText()" style="flex:1; background-color:#555; padding: 6px; font-size:12px;">📥 匯入地圖代碼</button>
@@ -243,23 +238,19 @@
   let isEditMode = false;
   let currentEditTool = 'wall';
 
-  let animDuration = 150;
+  let animDuration = 100; // 初始化對應預設選項的「快」
   let isAnimating = false;
   
   let cachedOptimalSteps = 0;
 
-  // 優化後的縮放邏輯
   function adjustScale() {
     const container = document.getElementById('app-container');
     const baseWidth = 380;  
     const baseHeight = 560; 
     
-    // 如果是桌面端（寬度大於 500 且高度大於 650）
     if (window.innerWidth > 500 && window.innerHeight > 650) {
-      // 保持固定 1.5 倍縮放，這時瀏覽器原生的縮放百分比（Ctrl + 滾輪）就能正常運作！
       container.style.transform = `scale(1.5)`;
     } else {
-      // 行動端才進行完美的自適應貼合
       const scaleX = window.innerWidth / baseWidth;
       const scaleY = window.innerHeight / baseHeight;
       let scale = Math.min(scaleX, scaleY) * 0.95;
@@ -354,7 +345,6 @@
     return moved;
   }
 
-  // 雙向廣度優先搜尋 (Bidirectional BFS)
   function findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls) {
     const getBigIntKey = (b) => {
       let key = 0n;
@@ -381,7 +371,6 @@
     let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
     while (headA < queueA.length && headB < queueB.length && nodes < maxNodes) {
-      // 1. Queue A
       let currA = queueA[headA++];
       nodes++;
       if (currA.steps < 15) { 
@@ -398,7 +387,6 @@
         }
       }
 
-      // 2. Queue B
       let currB = queueB[headB++];
       nodes++;
       if (currB.steps < 15) {
@@ -566,7 +554,6 @@
     return blocks.map(b => [b.r - minR, b.c - minC]);
   }
 
-  // 隨機漫步 + 雙向BFS認證機制
   function generateLevel() {
     if(isEditMode) toggleEditMode();
     document.getElementById('step-counter').innerText = '運算中...';
@@ -582,7 +569,6 @@
       let success = false;
 
       for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
-        // 1. 生成牆壁
         let currentWalls = [];
         while (currentWalls.length < numWalls) {
           let wr = Math.floor(Math.random() * 8);
@@ -590,7 +576,6 @@
           if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
         }
         
-        // 2. 隨機生成起點形狀
         const currentOffsets = generateRandomHexominoOffsets();
         let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
         let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
@@ -607,7 +592,6 @@
         }
         if (!validStart) continue;
 
-        // 3. 正向拓撲：瘋狂隨機漫步
         let targetBlocks = cloneBlocks(startBlocks);
         let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
         let walkCount = 0;
@@ -639,7 +623,6 @@
             if(!moved) lastDirIdx = -1; 
         }
 
-        // 4. 重疊檢查
         let hasOverlap = false;
         const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
         for (let tb of targetBlocks) {
@@ -650,7 +633,6 @@
         }
         if (hasOverlap) continue;
 
-        // 5. 雙向 BFS 驗證真實最少步數
         let optimal = findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls);
         
         if (optimal >= minSteps && optimal <= maxSteps) {
@@ -671,7 +653,6 @@
     }, 50);
   }
 
-  // 將當前地圖資料複製成 8x8 代碼字串
   function copyMapText() {
     if (initialOrangeBlocks.length === 0 && targetBlueBlocks.length === 0 && initialWalls.length === 0) {
       alert("目前沒有可導出的地圖資料！");
@@ -711,7 +692,6 @@
     });
   }
 
-  // 匯入 8x8 地圖代碼字串並進行 AI 步數驗證
   function importMapText() {
     let input = prompt("請貼上 8x8 地圖代碼 (共 64 位數字)：");
     if (!input) return;
@@ -841,7 +821,7 @@
         alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
         cachedOptimalSteps = -1;
       } else {
-        alert(`驗證成功！最佳步數 ≤ ${trueOptimal} 步！`);
+        alert(`驗證成功！挑戰目標：${trueOptimal} 步！`);
         cachedOptimalSteps = trueOptimal; 
       }
       toggleEditMode();
@@ -870,8 +850,12 @@
     else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) move(dy > 0 ? 1 : -1, 0);
   }, {passive: false});
 
+  // 強制攔截未授權的滑動事件，確保畫面不會偏移
   document.addEventListener('touchmove', e => {
-    if(!['BUTTON', 'SELECT'].includes(e.target.tagName)) e.preventDefault();
+    const tag = e.target.tagName;
+    if (tag !== 'BUTTON' && tag !== 'SELECT' && tag !== 'OPTION') {
+      e.preventDefault();
+    }
   }, {passive: false});
 
   window.onload = () => {
