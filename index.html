@@ -751,7 +751,7 @@ async function playerMove(dr, dc, moveChar) {
         isPrompting = true;
         let res = await showModal({
             title: "Overwrite History?", 
-            msg: "You are making a move from a past state.\nThis will permanently delete your saved future steps.\nContinue?", 
+            msg: "You are making a move from a past state.\nThis will permanently delete your saved future steps. Continue?", 
             type: 'confirm'
         });
         isPrompting = false;
@@ -865,7 +865,7 @@ function checkWin() {
     if (checkCurrentWin()) {
         let path = playHistory.map(h => h.move).join(' → ');
         setTimeout(() => {
-            customAlert("Puzzle Solved!", `Congratulations! You solved it in ${playHistory.length} steps.\n\nPath:\n${path}\n\nTip: You can use the Undo (<) button or click a previous step in the history to unlock the board and explore other paths!`);
+            customAlert("Puzzle Solved!", `Congratulations! You solved it in ${playHistory.length} steps.\n\nPath:\n${path}`);
         }, globalAnimSpeed + 50);
     }
 }
