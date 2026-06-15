@@ -3,865 +3,958 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kesto 模擬器 V1.95</title>
+<title>Kesto Maker & Player</title>
 <style>
+  /* 專業級暗色主題變數設定 */
+  :root {
+    --bg-base: #121212;       
+    --bg-surface: #1e1e1e;    
+    --bg-inset: #1a1a1a;      
+    
+    --border-subtle: #2d2d2d; 
+    --border-muted: #3d3d3d;
+    
+    --text-primary: #e0e0e0;
+    --text-secondary: #888888;
+    
+    --accent-primary: #5fa8eb;
+    --accent-hover: #4a90e2;
+    --accent-danger: #e24a4a;
+
+    --btn-primary-bg: #3870a8;
+    --btn-primary-hover: #2a5582;
+    
+    --game-cell: #2b2b2b;     
+    --game-wall: #5c5c5c;     
+    --game-block: #f0a34b;
+    --game-target-border: #5fa8eb; 
+    --game-target-fill: #5fa8eb;   
+  }
+
+  * { 
+    box-sizing: border-box; 
+    -webkit-tap-highlight-color: transparent; 
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-muted);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+  }
+
   body {
-    background-color: #121212;
-    color: #ffffff;
-    font-family: sans-serif;
-    display: flex;
-    justify-content: center; 
-    align-items: center;     
-    min-height: 100vh;       
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 0;
-    touch-action: auto; 
+    display: flex;
+    justify-content: center;
+    align-items: center; 
+    min-height: 100vh;
+    overflow-x: hidden;
     user-select: none;
-    overflow: auto; 
-    overscroll-behavior: none; /* 防止手機端上下滑動時產生橡皮筋回彈與畫面偏移 */
   }
 
-  #app-container {
+  .scale-wrapper {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    transform-origin: center center; 
-    width: 380px;  
-    height: 560px; 
-  }
-
-  .header {
-    display: flex;
-    flex-direction: column;
-    width: 368px;
-    margin-bottom: 10px;
-    gap: 8px;
-  }
-  .top-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-  }
-  .title {
-    font-size: 24px;
-    font-weight: bold;
-    white-space: nowrap; 
-  }
-  .controls-row {
-    display: flex;
-    gap: 5px;
-    width: 100%;
-    justify-content: space-between;
-  }
-  button, select {
-    background-color: #333;
-    color: white;
-    border: none;
-    padding: 6px 10px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  button:active { background-color: #555; }
-  select { outline: none; }
-  
-  #editor-toolbar {
-    display: none;
-    background-color: #222;
-    padding: 8px;
-    border-radius: 6px;
-    width: 352px;
-    margin-top: 10px;
-    margin-bottom: 5px;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px dashed #fca33d;
-  }
-  .tool-group { display: flex; gap: 4px; }
-  .tool-btn { border: 2px solid transparent; }
-  .tool-btn.active { border-color: #fff; font-weight: bold; }
-  #btn-tool-wall { background-color: #555; }
-  #btn-tool-start { background-color: #fca33d; color: #000; }
-  #btn-tool-target { background-color: #4287f5; }
-
-  #game-board {
-    display: grid;
-    grid-template-columns: repeat(8, 40px);
-    grid-template-rows: repeat(8, 40px);
-    gap: 4px;
-    background-color: #1a1a1a;
-    padding: 10px;
-    border-radius: 8px;
-    position: relative;
-    touch-action: none; /* 強制遊戲區域不可觸發網頁原生滾動，只交給腳本處理滑動 */
-  }
-  .cell {
-    width: 40px;
-    height: 40px;
-    background-color: #2a2a2a;
-    border-radius: 4px;
-  }
-  .cell.edit-hover:hover { background-color: #3a3a3a; }
-  
-  .block {
-    position: absolute;
-    width: 40px;
-    height: 40px;
-    border-radius: 4px;
-    box-sizing: border-box;
-    pointer-events: none;
-  }
-  
-  .orange { background-color: #fca33d; z-index: 20; }
-  .orange.on-target { background-color: #4287f5; }
-
-  .blue {
-    border: 3px dashed #4287f5;
-    background-color: rgba(66, 135, 245, 0.1);
-    z-index: 10;
-  }
-  .gray { background-color: #555555; z-index: 15; }
-  
-  .modal {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    z-index: 100;
-    border-radius: 8px;
     justify-content: center;
     align-items: center;
-    flex-direction: column;
+    width: 100%;
+    padding: 40px 20px;
+    transform-origin: center center;
   }
-  .modal-content { text-align: center; padding: 20px; }
-  .modal-title { color: #fca33d; font-size: 28px; font-weight: bold; margin-bottom: 10px; }
-  .modal-text { font-size: 16px; color: #aaa; margin-bottom: 20px; }
-  .modal-buttons { display: flex; gap: 15px; justify-content: center; }
-  .modal-buttons button { padding: 10px 20px; font-size: 16px; font-weight: bold; }
-  .btn-replay { background-color: #555; color: white; }
-  .btn-next { background-color: #4287f5; color: white; }
 
-  .footer-row {
+  @media (min-width: 1300px) and (min-height: 800px) { .scale-wrapper { transform: scale(1.15); } }
+  @media (min-width: 1600px) and (min-height: 900px) { .scale-wrapper { transform: scale(1.3); } }
+
+  .app-container {
     display: flex;
-    gap: 5px;
-    width: 368px;
-    justify-content: space-between;
-    margin-top: 10px;
+    flex-direction: row;
+    justify-content: center;
+    align-items: stretch;
+    gap: 32px;
+    max-width: 1200px;
+    width: 100%;
+  }
+
+  .panel {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-muted);
+    border-radius: 12px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .side-panel {
+    flex: 1;
+    min-width: 280px;
+    max-width: 340px;
+  }
+
+  .center-panel {
+    flex: 0 0 auto;
+    width: 400px;
+    align-items: center;
+  }
+
+  .panel-header { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; text-align: center; width: 100%; }
+  .panel-subheader {
+    font-size: 12px; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 600; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle); padding-bottom: 8px;
+  }
+
+  #game-board {
+    display: grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px);
+    gap: 4px; background-color: var(--bg-inset); padding: 8px; border-radius: 8px;
+    border: 1px solid var(--border-subtle); position: relative; touch-action: none;
+  }
+  
+  #game-board.locked { border-color: var(--border-muted); }
+
+  .cell {
+    width: 40px; height: 40px; background-color: var(--game-cell);
+    border-radius: 6px; cursor: pointer; transition: background-color 0.15s;
+  }
+  @media (hover: hover) { .cell:hover { background-color: #383838; } }
+  .locked .cell { cursor: not-allowed; }
+
+  .dynamic-block { position: absolute; width: 40px; height: 40px; border-radius: 6px; pointer-events: none; }
+  .wall { background-color: var(--game-wall); z-index: 10; }
+  .target { background-color: transparent; border: 3px solid var(--game-target-border); z-index: 5; }
+  .orange { background-color: var(--game-block); z-index: 20; }
+  .orange.on-target { background-color: var(--game-target-fill); border: none; box-shadow: none; }
+
+  .btn {
+    background-color: transparent; color: var(--text-primary); border: 1px solid var(--border-muted);
+    padding: 8px 12px; border-radius: 6px; font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center;
+    justify-content: center; gap: 6px;
+  }
+  .btn:hover:not(:disabled) { background-color: var(--border-subtle); color: #fff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  
+  .btn-primary { background-color: var(--btn-primary-bg); color: #fff; border-color: var(--btn-primary-bg); font-weight: 600; }
+  .btn-primary:hover:not(:disabled) { background-color: var(--btn-primary-hover); border-color: var(--btn-primary-hover); }
+
+  .btn-danger { background-color: transparent; color: var(--accent-danger); border-color: var(--border-muted); }
+  .btn-danger:hover { background-color: #2a1111; border-color: var(--accent-danger); }
+
+  .btn-text { background: none; border: none; padding: 4px 8px; color: var(--text-secondary); }
+  .btn-text:hover { color: var(--text-primary); background-color: var(--border-subtle); }
+
+  .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .tool-btn { 
+    background-color: var(--bg-inset); border: 1px solid var(--border-subtle); 
+    height: 44px; padding: 0; display: flex; justify-content: center; align-items: center;
+  }
+  .tool-btn.active { background-color: var(--border-muted); border-color: var(--text-secondary); }
+  
+  .tool-icon { 
+    width: 28px; height: 28px; border-radius: 4px; box-sizing: border-box; 
+  }
+  .tool-icon-erase { background-color: var(--game-cell); }
+  .tool-icon-wall { background-color: var(--game-wall); }
+  .tool-icon-target { background-color: transparent; border: 2px solid var(--game-target-border); }
+  .tool-icon-start { background-color: var(--game-block); }
+
+  .slider-container { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; margin-bottom: 8px; }
+  .slider-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); }
+  .slider-header-left { font-weight: 600; }
+  .slider-label { font-family: monospace; font-size: 12px; color: var(--text-primary); }
+  input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent-primary); cursor: pointer; }
+
+  .game-controls {
+    display: none; flex-direction: column; gap: 12px; background-color: var(--bg-surface);
+    padding: 0; border: none; margin-top: 8px; flex: 1;
+  }
+  .control-row { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .control-indicator { font-family: monospace; font-size: 14px; color: var(--text-primary); min-width: 50px; text-align: center; }
+
+  /* 歷史足跡面板 UI */
+  .path-container {
+    display: grid; 
+    grid-template-columns: repeat(5, 1fr); 
+    gap: 6px; 
+    max-height: 160px; 
+    overflow-y: auto; 
+    background: var(--bg-inset); 
+    padding: 8px; 
+    border-radius: 6px; 
+    border: 1px solid var(--border-subtle);
+    margin-top: 4px; 
+    align-content: start; 
+  }
+  .path-chip {
+    background-color: var(--bg-surface); 
+    border: 1px solid var(--border-muted); 
+    color: var(--text-secondary);
+    padding: 4px 0; 
+    border-radius: 4px; 
+    font-size: 11px; 
+    cursor: pointer; 
+    font-family: monospace; 
+    transition: all 0.15s;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    width: 100%; 
+    box-sizing: border-box;
+  }
+  .path-chip.start-chip {
+    grid-column: 1 / -1; 
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .path-chip:hover { background-color: var(--border-subtle); color: var(--text-primary); }
+  .path-chip.active { background-color: var(--accent-primary); color: #fff; border-color: var(--accent-primary); font-weight: bold; }
+  .path-chip.future { opacity: 0.4; border-style: dashed; }
+
+  /* 質感彈出視窗 (Modal) */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: none; justify-content: center; align-items: center; z-index: 10000;
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  .modal-overlay.active { display: flex; opacity: 1; }
+  .modal-box {
+    background: var(--bg-surface); border: 1px solid var(--border-subtle);
+    padding: 24px; border-radius: 12px; width: 90%; max-width: 360px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.6);
+    transform: translateY(20px); transition: transform 0.2s ease; display: flex; flex-direction: column; gap: 16px;
+  }
+  .modal-overlay.active .modal-box { transform: translateY(0); }
+  .modal-title { font-weight: 600; font-size: 16px; color: var(--text-primary); }
+  .modal-msg { font-size: 14px; color: var(--text-secondary); line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+  .modal-input {
+    background: var(--bg-inset); border: 1px solid var(--border-subtle);
+    color: var(--text-primary); padding: 10px; border-radius: 6px; width: 100%; outline: none; font-family: monospace;
+  }
+  .modal-input:focus { border-color: var(--accent-primary); }
+  .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
+
+  @media (max-width: 1024px) {
+    .scale-wrapper { transform: none !important; padding: 20px 10px; align-items: flex-start; }
+    .app-container { flex-direction: column; align-items: center; }
+    .side-panel, .center-panel { width: 100%; max-width: 416px; flex: auto; }
+    .left-panel { order: 2; }
+    .center-panel { order: 1; }
+    .right-panel { order: 3; }
+    
+    .game-controls {
+      position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%); width: calc(100% - 40px); max-width: 416px;
+      z-index: 1000; background-color: var(--bg-surface); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85); 
+      border: 1px solid var(--border-subtle); padding: 16px; margin: 0;
+    }
+    body:has(.game-controls[style*="flex"]) { padding-bottom: 250px; }
   }
 </style>
 </head>
 <body>
 
-<div id="app-container">
-  <div class="header">
-    <div class="top-row">
-      <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
-      <div style="display:flex; gap:5px;">
-        <select id="anim-select" onchange="updateAnimSpeed()">
-          <option value="0">無動畫</option>
-          <option value="100" selected>動畫: 快</option> <!-- 預設改為快 -->
-          <option value="150">動畫: 中</option>
-          <option value="300">動畫: 慢</option>
-        </select>
-        <select id="difficulty-select" onchange="generateLevel()">
-          <option value="easy" selected>簡單 (5-7步)</option> <!-- 預設改為簡單 -->
-          <option value="medium">普通 (8-13步)</option>
-          <option value="hard">困難 (14-20步🔥)</option>
-        </select>
+<div class="scale-wrapper">
+<div class="app-container">
+  
+  <!-- 左側：工具與設定 -->
+  <div class="panel side-panel left-panel">
+    <div>
+      <div class="panel-subheader">Tools</div>
+      <div class="tool-grid">
+        <button class="btn tool-btn" id="btn-tool-erase" onclick="setTool('erase', this)" title="Empty / Eraser">
+            <div class="tool-icon tool-icon-erase"></div>
+        </button>
+        <button class="btn tool-btn active" id="btn-tool-wall" onclick="setTool('wall', this)" title="Wall">
+            <div class="tool-icon tool-icon-wall"></div>
+        </button>
+        <button class="btn tool-btn" id="btn-tool-target" onclick="setTool('target', this)" title="Target">
+            <div class="tool-icon tool-icon-target"></div>
+        </button>
+        <button class="btn tool-btn" id="btn-tool-start" onclick="setTool('start', this)" title="Block">
+            <div class="tool-icon tool-icon-start"></div>
+        </button>
+      </div>
+      <div style="margin-top: 16px; display:flex;">
+        <button class="btn" onclick="clearBoard()" style="flex:1;">Clear Board</button>
       </div>
     </div>
-    <div class="controls-row">
-      <select id="history-select" onchange="loadSelectedHistory(this.value)">
-        <option value="-1">-- 歷史關卡 --</option>
-      </select>
-      <div style="display:flex; gap:3px;">
-        <button onclick="undo()">⟲ 復原</button>
-        <button onclick="resetLevel()">↻ 重置</button>
-        <button id="btn-edit-mode" onclick="toggleEditMode()" style="background-color:#5c3da6;">🛠️ 設計</button>
-        <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
-      </div>
-    </div>
-  </div>
 
-  <div id="game-board">
-    <div id="win-modal" class="modal">
-      <div class="modal-content">
-        <div class="modal-title">太神啦！🎉</div>
-        <div id="modal-step-text" class="modal-text">你用了 0 步成功通關！</div>
-        <div id="modal-optimal-text" style="font-size:14px; color:#66e066; margin-bottom:15px;"></div>
-        <div class="modal-buttons">
-          <button class="btn-replay" onclick="closeModalAndReplay()">再玩一次</button>
-          <button class="btn-next" onclick="closeModalAndNext()">下一關</button>
+    <div>
+      <div class="panel-subheader">Settings</div>
+      
+      <!-- 動畫速度控制 -->
+      <div class="slider-container">
+        <div class="slider-header">
+            <span class="slider-header-left">Anim Speed</span>
+            <div class="slider-header-right">
+                <span id="anim-speed-label" class="slider-label">100ms</span>
+            </div>
         </div>
+        <input type="range" id="anim-speed-slider" min="0" max="500" value="100" step="10" oninput="updateSettingsUI()" onchange="if(stateLoaded) saveState()">
       </div>
     </div>
   </div>
 
-  <div id="editor-toolbar">
-    <div class="tool-group">
-      <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
-      <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
-      <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
+  <!-- 中間：遊戲面板 -->
+  <div class="panel center-panel">
+    <div class="panel-header">Workspace</div>
+    
+    <div id="game-board"></div>
+    
+    <div style="display:flex; justify-content: center; gap:16px; width: 100%; margin-top: 8px;">
+        <button class="btn btn-text" onclick="copyMapText()">Export Code</button>
+        <button class="btn btn-text" onclick="importMapText()">Import Code</button>
     </div>
-    <div style="display:flex; gap:4px;">
-      <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
-      <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
+
+    <!-- 遊玩模式開關 -->
+    <button class="btn btn-primary" id="btn-play-mode" onclick="togglePlayMode()" style="width:100%; margin-top:12px; font-weight:600;">
+        Play Map
+    </button>
+  </div>
+
+  <!-- 右側：遊玩控制與狀態 -->
+  <div class="panel side-panel right-panel" style="display:flex; flex-direction:column;">
+    
+    <!-- 編輯模式說明 -->
+    <div id="edit-instructions" style="flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; color: var(--text-secondary); gap: 12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <div style="font-weight: 600; color: var(--text-primary); font-size: 15px;">Edit Mode</div>
+        <div style="font-size: 13px; line-height: 1.5;">Design your map by placing walls, targets, and blocks.<br><br>Click <b>Play Map</b> to test your level.</div>
+    </div>
+
+    <!-- 遊玩控制面板 -->
+    <div id="play-panel" class="game-controls">
+      <div class="panel-subheader" style="border:none; margin:0; padding:0;">Play Controls</div>
+      
+      <div class="control-row">
+        <button class="btn" onclick="jumpToStep(-1)" title="First Step">&lt;&lt;</button>
+        <button class="btn" onclick="playerUndo()" title="Previous Step (Ctrl+Z)">&lt;</button>
+        <span id="step-indicator" class="control-indicator">0 / 0</span>
+        <button class="btn" onclick="playerRedo()" title="Next Step">&gt;</button>
+        <button class="btn" onclick="jumpToStep(playHistory.length - 1)" title="Last Step">&gt;&gt;</button>
+      </div>
+
+      <div class="slider-container" style="margin-top: 4px;">
+        <div class="slider-header">
+            <span class="slider-header-left">Replay Speed</span>
+            <span id="speed-label" class="slider-label">1.00x</span>
+        </div>
+        <input type="range" id="speed-slider" min="0.25" max="1.75" value="1.00" step="0.05" oninput="updateSpeed()" onchange="if(stateLoaded) saveState()">
+      </div>
+
+      <div style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" id="btn-history-play" onclick="toggleHistoryPlay()" style="flex: 1;">Auto Replay</button>
+      </div>
+      
+      <!-- 歷史足跡 UI -->
+      <div id="path-display" class="path-container"></div>
+      
+      <div style="font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: auto; padding-top: 10px;">
+          Tip: Use Keyboard Arrows / WASD / Swipe
+      </div>
     </div>
   </div>
 
-  <div class="footer-row">
-    <button onclick="copyMapText()" style="flex:1; background-color:#3a86c8; padding: 6px; font-size:12px;">📋 複製地圖代碼</button>
-    <button onclick="importMapText()" style="flex:1; background-color:#555; padding: 6px; font-size:12px;">📥 匯入地圖代碼</button>
+</div>
+</div>
+
+<!-- 自訂彈出視窗 (Modal) -->
+<div id="custom-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div id="modal-title" class="modal-title"></div>
+    <div id="modal-msg" class="modal-msg"></div>
+    <input type="text" id="modal-input" class="modal-input" autocomplete="off" spellcheck="false">
+    <div class="modal-buttons">
+      <button class="btn" id="modal-btn-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-btn-confirm">Confirm</button>
+    </div>
   </div>
 </div>
 
 <script>
-  const GRID_SIZE = 8;
-  const CELL_SIZE = 40;
-  const GAP = 4;
-  const PADDING = 10;
-  
-  let initialOrangeBlocks = [];
-  let targetBlueBlocks = []; 
-  let initialWalls = [];
+// ==========================================
+// 全域變數
+// ==========================================
+let globalAnimSpeed = 100;
+let stateLoaded = false;
+let playHistoryTimer = null; 
 
-  let orangeBlocks = [];
-  let walls = [];
-  let stepCount = 0;
-  let history = [];
-  let savedLevels = [];
+let boardData = { walls: [], start: [], target: [] };
+let currentTool = 'wall';
+let isMouseDown = false;
+let boardLocked = false; 
 
-  let isEditMode = false;
-  let currentEditTool = 'wall';
+// Play Mode 變數
+let isPlayMode = false;
+let playInitialState = [];
+let playHistory = [];
+let currentStepIndex = -1; 
+let isPrompting = false;   
+let playDelay = 300; 
+let blockIdCounter = 0;
 
-  let animDuration = 100; // 初始化對應預設選項的「快」
-  let isAnimating = false;
-  
-  let cachedOptimalSteps = 0;
+// ==========================================
+// 0. Custom Modal UI (自訂彈窗系統)
+// ==========================================
+let modalResolve = null;
+function showModal({ title, msg, type, value="" }) {
+    return new Promise((resolve) => {
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-msg').innerText = msg;
+        const inputEl = document.getElementById('modal-input');
+        const cancelBtn = document.getElementById('modal-btn-cancel');
+        
+        if (type === 'prompt') {
+            inputEl.style.display = 'block'; inputEl.value = value;
+            setTimeout(() => inputEl.focus(), 50);
+        } else {
+            inputEl.style.display = 'none';
+        }
+        
+        if (type === 'alert') cancelBtn.style.display = 'none';
+        else cancelBtn.style.display = 'block';
 
-  function adjustScale() {
-    const container = document.getElementById('app-container');
-    const baseWidth = 380;  
-    const baseHeight = 560; 
+        document.getElementById('custom-modal').classList.add('active');
+        modalResolve = resolve;
+    });
+}
+function closeModal(val) {
+    document.getElementById('custom-modal').classList.remove('active');
+    if (modalResolve) { modalResolve(val); modalResolve = null; }
+}
+document.getElementById('modal-btn-confirm').onclick = () => {
+    let inputEl = document.getElementById('modal-input');
+    closeModal(inputEl.style.display !== 'none' ? inputEl.value : true);
+};
+document.getElementById('modal-btn-cancel').onclick = () => closeModal(false);
+
+async function customAlert(title, msg) { await showModal({title, msg, type: 'alert'}); }
+async function customConfirm(title, msg, onYes) { if(await showModal({title, msg, type: 'confirm'})) onYes(); }
+async function customPrompt(title, msg, onResult) { 
+    let res = await showModal({title, msg, type: 'prompt'});
+    if(res !== false && res !== null) onResult(res);
+}
+
+// ==========================================
+// 1. LocalStorage State Manager
+// ==========================================
+function saveState() {
+    let bData = boardData;
+    if (isPlayMode) {
+        bData = { walls: boardData.walls, target: boardData.target, start: playInitialState };
+    }
+    const state = {
+        boardData: bData,
+        settings: {
+            animSpeed: document.getElementById('anim-speed-slider').value
+        },
+        playState: {
+            active: isPlayMode,
+            initial: playInitialState,
+            history: playHistory,
+            stepIndex: currentStepIndex
+        }
+    };
+    localStorage.setItem('kesto_game_state', JSON.stringify(state));
+}
+
+function loadState() {
+    const data = localStorage.getItem('kesto_game_state');
+    if (data) {
+        try {
+            const state = JSON.parse(data);
+            if (state.boardData) {
+                boardData = state.boardData;
+                let maxId = -1;
+                boardData.start.forEach(b => { if (b[2] > maxId) maxId = b[2]; });
+                blockIdCounter = maxId + 1;
+            }
+            if (state.settings) {
+                document.getElementById('anim-speed-slider').value = state.settings.animSpeed;
+                updateSettingsUI();
+            }
+            if (state.playState && state.playState.active) {
+                isPlayMode = true;
+                playInitialState = state.playState.initial;
+                playHistory = state.playState.history;
+                currentStepIndex = state.playState.stepIndex;
+            }
+        } catch (e) { console.error("Failed to load state", e); }
+    }
+}
+
+// ==========================================
+// 2. 主程式與 UI 互動邏輯 
+// ==========================================
+const GRID_SIZE = 8, CELL_SIZE = 40, GAP = 4, PADDING = 8;
+
+function updateSettingsUI() {
+    globalAnimSpeed = parseInt(document.getElementById('anim-speed-slider').value);
+    document.getElementById('anim-speed-label').innerText = globalAnimSpeed + "ms";
+}
+
+function lockBoard() {
+    boardLocked = true;
+    document.getElementById('game-board').classList.add('locked');
+    document.querySelectorAll('.tool-btn').forEach(b => b.disabled = true);
+}
+function unlockBoard() {
+    if (isPlayMode) return; 
+    boardLocked = false;
+    document.getElementById('game-board').classList.remove('locked');
+    document.querySelectorAll('.tool-btn').forEach(b => b.disabled = false);
+}
+
+let lastTouchCell = null; 
+
+function initBoard() {
+    const board = document.getElementById('game-board');
+    board.innerHTML = '';
+    board.addEventListener('touchmove', handleTouchMove, {passive: false});
     
-    if (window.innerWidth > 500 && window.innerHeight > 650) {
-      container.style.transform = `scale(1.5)`;
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            let cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.r = r; cell.dataset.c = c;
+            cell.onmousedown = (e) => { e.preventDefault(); isMouseDown = true; applyTool(r, c); };
+            cell.onmouseenter = (e) => { if(isMouseDown) applyTool(r, c); };
+            cell.addEventListener('touchstart', (e) => {
+                e.preventDefault(); isMouseDown = true; applyTool(r, c); lastTouchCell = cell;
+            }, {passive: false});
+            board.appendChild(cell);
+        }
+    }
+    updateSettingsUI();
+}
+
+function handleTouchMove(e) {
+    if (isPlayMode) { e.preventDefault(); return; } 
+    if (!isMouseDown || boardLocked) return;
+    e.preventDefault(); 
+    let touch = e.touches[0];
+    let el = document.elementFromPoint(touch.clientX, touch.clientY); 
+    if (el && el.classList.contains('cell') && lastTouchCell !== el) { 
+        let r = parseInt(el.dataset.r), c = parseInt(el.dataset.c);
+        applyTool(r, c); lastTouchCell = el;
+    }
+}
+
+document.addEventListener('mouseup', () => { isMouseDown = false; lastTouchCell = null; });
+document.addEventListener('touchend', () => { isMouseDown = false; lastTouchCell = null; });
+document.addEventListener('touchcancel', () => { isMouseDown = false; lastTouchCell = null; });
+
+function setTool(tool, btnEl) {
+    if (boardLocked) return;
+    
+    if (currentTool === tool) {
+        currentTool = null;
+        btnEl.classList.remove('active');
     } else {
-      const scaleX = window.innerWidth / baseWidth;
-      const scaleY = window.innerHeight / baseHeight;
-      let scale = Math.min(scaleX, scaleY) * 0.95;
-      container.style.transform = `scale(${scale})`;
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        btnEl.classList.add('active');
     }
-  }
+}
 
-  window.addEventListener('resize', adjustScale);
+function applyTool(r, c) {
+    if (boardLocked || !currentTool) return; 
+    
+    if (currentTool === 'erase') {
+        boardData.walls = boardData.walls.filter(b => b[0]!==r || b[1]!==c);
+        boardData.start = boardData.start.filter(b => b[0]!==r || b[1]!==c);
+        boardData.target = boardData.target.filter(b => b[0]!==r || b[1]!==c);
+    } 
+    else if (currentTool === 'wall') {
+        boardData.walls = boardData.walls.filter(b => b[0]!==r || b[1]!==c);
+        boardData.start = boardData.start.filter(b => b[0]!==r || b[1]!==c);
+        boardData.target = boardData.target.filter(b => b[0]!==r || b[1]!==c);
+        boardData.walls.push([r, c]);
+    } 
+    else if (currentTool === 'start') {
+        boardData.walls = boardData.walls.filter(b => b[0]!==r || b[1]!==c);
+        if (!boardData.start.some(b => b[0]===r && b[1]===c)) boardData.start.push([r, c, blockIdCounter++]); 
+    } 
+    else if (currentTool === 'target') {
+        boardData.walls = boardData.walls.filter(b => b[0]!==r || b[1]!==c);
+        if (!boardData.target.some(b => b[0]===r && b[1]===c)) boardData.target.push([r, c]);
+    }
+    drawBoard();
+    if(stateLoaded) saveState();
+}
 
-  function initBoard() {
+function resetPlayState() {
+    stopHistoryPlay();
+    if (isPlayMode) {
+        exitPlayMode(true);
+    }
+    unlockBoard();
+}
+
+function clearBoard() {
+    customConfirm("Clear Board?", "Are you sure you want to clear all blocks and walls?", () => {
+        resetPlayState();
+        boardData = { walls: [], start: [], target: [] };
+        blockIdCounter = 0;
+        drawBoard();
+        if(stateLoaded) saveState();
+    });
+}
+
+function drawBoard() {
     const board = document.getElementById('game-board');
-    for (let i = 0; i < 64; i++) {
-      let cell = document.createElement('div');
-      cell.className = 'cell';
-      let r = Math.floor(i / GRID_SIZE);
-      let c = i % GRID_SIZE;
-      cell.onclick = () => handleCellClick(r, c);
-      board.appendChild(cell);
-    }
-    updateAnimSpeed();
-    generateLevel(); 
-  }
+    document.querySelectorAll('.dynamic-block').forEach(el => el.remove());
 
-  function updateAnimSpeed() { animDuration = parseInt(document.getElementById('anim-select').value); }
-  function getPixel(pos) { return PADDING + pos * (CELL_SIZE + GAP); }
-
-  function draw() {
-    const board = document.getElementById('game-board');
-    document.querySelectorAll('.dynamic').forEach(el => el.remove());
-
-    targetBlueBlocks.forEach(b => {
-      let el = document.createElement('div');
-      el.className = 'block blue dynamic';
-      el.style.top = getPixel(b.r) + 'px';
-      el.style.left = getPixel(b.c) + 'px';
-      board.appendChild(el);
-    });
-
-    walls.forEach(w => {
-      let el = document.createElement('div');
-      el.className = 'block gray dynamic';
-      el.style.top = getPixel(w[0]) + 'px';
-      el.style.left = getPixel(w[1]) + 'px';
-      board.appendChild(el);
-    });
-
-    orangeBlocks.forEach(b => {
-      let el = document.createElement('div');
-      el.className = 'block orange dynamic';
-      el.id = `orange-block-${b.id}`; 
-      el.style.transition = `top ${animDuration}ms ease-out, left ${animDuration}ms ease-out, background-color ${animDuration}ms ease`;
-      el.style.top = getPixel(b.r) + 'px';
-      el.style.left = getPixel(b.c) + 'px';
-      
-      if (targetBlueBlocks.some(tb => tb.r === b.r && tb.c === b.c)) {
-        el.classList.add('on-target');
-      }
-      board.appendChild(el);
-    });
-
-    document.getElementById('step-counter').innerText = stepCount + ' 步';
-  }
-
-  function cloneBlocks(blocks) { return blocks.map(b => ({id: b.id, r: b.r, c: b.c})); }
-
-  function moveGroup(blocks, dr, dc, currentWalls) {
-    blocks.sort((a, b) => {
-      if (dr !== 0) return dr === 1 ? b.r - a.r : a.r - b.r;
-      if (dc !== 0) return dc === 1 ? b.c - a.c : a.c - b.c;
-      return 0;
-    });
-
-    let currentOccupied = new Set(blocks.map(b => `${b.r},${b.c}`));
-    let moved = false;
-
-    for (let block of blocks) {
-      let nr = block.r + dr;
-      let nc = block.c + dc;
-      if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) continue;
-      if (currentWalls.some(w => w[0] === nr && w[1] === nc)) continue;
-      
-      currentOccupied.delete(`${block.r},${block.c}`);
-      if (currentOccupied.has(`${nr},${nc}`)) {
-        currentOccupied.add(`${block.r},${block.c}`);
-      } else {
-        block.r = nr;
-        block.c = nc;
-        currentOccupied.add(`${nr},${nc}`);
-        moved = true;
-      }
-    }
-    return moved;
-  }
-
-  function findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls) {
-    const getBigIntKey = (b) => {
-      let key = 0n;
-      for (let i = 0; i < b.length; i++) {
-        key |= 1n << BigInt((b[i].r << 3) | b[i].c);
-      }
-      return key;
+    const addBlock = (r, c, classes) => {
+        let el = document.createElement('div');
+        el.className = `dynamic-block ${classes}`;
+        el.style.top = `${PADDING + r * (CELL_SIZE + GAP)}px`;
+        el.style.left = `${PADDING + c * (CELL_SIZE + GAP)}px`;
+        board.appendChild(el);
+        return el;
     };
 
-    let startKey = getBigIntKey(startBlocks);
-    let targetKey = getBigIntKey(targetBlocks);
-    if (startKey === targetKey) return 0;
+    boardData.target.forEach(b => addBlock(b[0], b[1], 'target'));
+    boardData.walls.forEach(b => addBlock(b[0], b[1], 'wall'));
+    boardData.start.forEach((b) => {
+        let el = addBlock(b[0], b[1], 'orange');
+        el.id = `block-${b[2]}`;
+        if (boardData.target.some(t => t[0]===b[0] && t[1]===b[1])) el.classList.add('on-target');
+    });
+}
 
-    let queueA = [ { blocks: cloneBlocks(startBlocks), steps: 0 } ];
-    let queueB = [ { blocks: cloneBlocks(targetBlocks), steps: 0 } ];
+function cloneBlocks(blocks) { return blocks.map(b => [...b]); }
+
+function moveGroup(blocks, dr, dc, walls) {
+    blocks.sort((a, b) => (dr !== 0) ? (dr === 1 ? b[0]-a[0] : a[0]-b[0]) : (dc === 1 ? b[1]-a[1] : a[1]-b[1]));
+    let occupied = new Set(blocks.map(b => `${b[0]},${b[1]}`));
     
-    let headA = 0, headB = 0;
-
-    let visitedA = new Map(); visitedA.set(startKey, 0);
-    let visitedB = new Map(); visitedB.set(targetKey, 0);
-
-    let maxNodes = 80000; 
-    let nodes = 0;
-    let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
-
-    while (headA < queueA.length && headB < queueB.length && nodes < maxNodes) {
-      let currA = queueA[headA++];
-      nodes++;
-      if (currA.steps < 15) { 
-        for (let d of dirs) {
-          let next = cloneBlocks(currA.blocks);
-          if (moveGroup(next, d[0], d[1], currentWalls)) {
-            let key = getBigIntKey(next);
-            if (visitedB.has(key)) return currA.steps + 1 + visitedB.get(key); 
-            if (!visitedA.has(key)) {
-              visitedA.set(key, currA.steps + 1);
-              queueA.push({ blocks: next, steps: currA.steps + 1 });
-            }
-          }
-        }
-      }
-
-      let currB = queueB[headB++];
-      nodes++;
-      if (currB.steps < 15) {
-        for (let d of dirs) {
-          let next = cloneBlocks(currB.blocks);
-          if (moveGroup(next, d[0], d[1], currentWalls)) {
-            let key = getBigIntKey(next);
-            if (visitedA.has(key)) return currB.steps + 1 + visitedA.get(key); 
-            if (!visitedB.has(key)) {
-              visitedB.set(key, currB.steps + 1);
-              queueB.push({ blocks: next, steps: currB.steps + 1 });
-            }
-          }
-        }
-      }
-    }
-    return -1; 
-  }
-
-  function move(dr, dc) {
-    if (isEditMode || document.getElementById('win-modal').style.display === 'flex' || isAnimating) return;
-    
-    let nextOr = cloneBlocks(orangeBlocks);
-    let movedOr = moveGroup(nextOr, dr, dc, walls);
-
-    if (movedOr) {
-      history.push({ orange: cloneBlocks(orangeBlocks), step: stepCount });
-      orangeBlocks = nextOr;
-      stepCount++;
-      document.getElementById('step-counter').innerText = stepCount + ' 步';
-
-      if (animDuration > 0) {
-        isAnimating = true;
-        orangeBlocks.forEach(b => {
-          let el = document.getElementById(`orange-block-${b.id}`);
-          if(el) {
-            el.style.transition = `top ${animDuration}ms ease-out, left ${animDuration}ms ease-out, background-color ${animDuration}ms ease`;
-            el.style.top = getPixel(b.r) + 'px';
-            el.style.left = getPixel(b.c) + 'px';
-            if (targetBlueBlocks.some(tb => tb.r === b.r && tb.c === b.c)) {
-              el.classList.add('on-target');
-            } else {
-              el.classList.remove('on-target');
-            }
-          }
-        });
-        setTimeout(() => {
-          isAnimating = false;
-          checkWin();
-        }, animDuration);
-      } else {
-        draw();
-        setTimeout(checkWin, 50);
-      }
-    }
-  }
-
-  function undo() {
-    if (isEditMode || document.getElementById('win-modal').style.display === 'flex' || isAnimating) return;
-    if (history.length > 0) {
-      let lastState = history.pop();
-      orangeBlocks = cloneBlocks(lastState.orange);
-      stepCount = lastState.step;
-      draw();
-    }
-  }
-
-  function resetLevel() {
-    if (isAnimating) return;
-    orangeBlocks = cloneBlocks(initialOrangeBlocks);
-    walls = [...initialWalls];
-    stepCount = 0;
-    history = [];
-    draw();
-  }
-
-  function saveCurrentLevelToHistory() {
-    if (initialOrangeBlocks.length === 0 || isEditMode) return;
-    let isDuplicate = savedLevels.some(lvl => 
-      JSON.stringify(lvl.walls) === JSON.stringify(initialWalls) &&
-      JSON.stringify(lvl.orange.map(b => ({r: b.r, c: b.c}))) === JSON.stringify(initialOrangeBlocks.map(b => ({r: b.r, c: b.c})))
-    );
-
-    if (!isDuplicate) {
-      savedLevels.push({
-        orange: cloneBlocks(initialOrangeBlocks),
-        blue: cloneBlocks(targetBlueBlocks),
-        walls: [...initialWalls],
-        optimal: cachedOptimalSteps 
-      });
-      let select = document.getElementById('history-select');
-      let opt = document.createElement('option');
-      opt.value = savedLevels.length - 1;
-      opt.innerText = `關卡 ${savedLevels.length} (${document.getElementById('difficulty-select').value.toUpperCase()})`;
-      select.appendChild(opt);
-    }
-  }
-
-  function loadSelectedHistory(index) {
-    if(isAnimating) return;
-    let idx = parseInt(index);
-    if (idx >= 0 && idx < savedLevels.length) {
-      if(isEditMode) toggleEditMode();
-      let lvl = savedLevels[idx];
-      initialOrangeBlocks = cloneBlocks(lvl.orange);
-      targetBlueBlocks = cloneBlocks(lvl.blue);
-      initialWalls = [...lvl.walls];
-      cachedOptimalSteps = lvl.optimal; 
-      resetLevel();
-    }
-    document.getElementById('history-select').value = "-1";
-  }
-
-  function checkWin() {
-    let oStr = orangeBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
-    let bStr = targetBlueBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
-    if (oStr === bStr) {
-      document.getElementById('modal-step-text').innerText = `你用了 ${stepCount} 步成功通關！`;
-      document.getElementById('modal-optimal-text').innerText = `挑戰目標：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
-      document.getElementById('win-modal').style.display = 'flex';
-      saveCurrentLevelToHistory();
-    }
-  }
-
-  function triggerNextLevel() {
-    if(isAnimating) return;
-    saveCurrentLevelToHistory();
-    generateLevel();
-  }
-
-  function closeModalAndReplay() {
-    document.getElementById('win-modal').style.display = 'none';
-    resetLevel();
-  }
-
-  function closeModalAndNext() {
-    document.getElementById('win-modal').style.display = 'none';
-    generateLevel();
-  }
-
-  function generateRandomHexominoOffsets() {
-    const numBlocks = 6;
-    let blocks = [{r: 0, c: 0}];
-    let set = new Set(["0,0"]);
-
-    while (blocks.length < numBlocks) {
-      let possibleNeighbors = [];
-      for (let b of blocks) {
-        const dirs = [[-1,0], [1,0], [0,-1], [0,1]];
-        for (let d of dirs) {
-          let nr = b.r + d[0];
-          let nc = b.c + d[1];
-          let key = `${nr},${nc}`;
-          if (!set.has(key)) possibleNeighbors.push({r: nr, c: nc});
-        }
-      }
-      if (possibleNeighbors.length === 0) break; 
-      let nextBlock = possibleNeighbors[Math.floor(Math.random() * possibleNeighbors.length)];
-      blocks.push(nextBlock);
-      set.add(`${nextBlock.r},${nextBlock.c}`);
-    }
-
-    let minR = Math.min(...blocks.map(b => b.r));
-    let minC = Math.min(...blocks.map(b => b.c));
-    return blocks.map(b => [b.r - minR, b.c - minC]);
-  }
-
-  function generateLevel() {
-    if(isEditMode) toggleEditMode();
-    document.getElementById('step-counter').innerText = '運算中...';
-    
-    let diff = document.getElementById('difficulty-select').value;
-    
-    let minSteps = 5, maxSteps = 7, numWalls = 4;
-    if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
-    else if (diff === 'hard') { minSteps = 14; maxSteps = 20; numWalls = 8; }
-
-    setTimeout(() => {
-      let maxMapAttempts = 200; 
-      let success = false;
-
-      for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
-        let currentWalls = [];
-        while (currentWalls.length < numWalls) {
-          let wr = Math.floor(Math.random() * 8);
-          let wc = Math.floor(Math.random() * 8);
-          if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
-        }
+    for (let b of blocks) {
+        let nr = b[0] + dr, nc = b[1] + dc;
+        if (nr < 0 || nr >= 8 || nc < 0 || nc >= 8) continue;
+        if (walls.some(w => w[0]===nr && w[1]===nc)) continue;
         
-        const currentOffsets = generateRandomHexominoOffsets();
-        let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
-        let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
-        let sr = Math.floor(Math.random() * (8 - shapeRows + 1));
-        let sc = Math.floor(Math.random() * (8 - shapeCols + 1));
-
-        let startBlocks = [];
-        let validStart = true;
-        for (let i = 0; i < currentOffsets.length; i++) {
-          let r = sr + currentOffsets[i][0];
-          let c = sc + currentOffsets[i][1];
-          if (currentWalls.some(w => w[0] === r && w[1] === c)) { validStart = false; break; }
-          startBlocks.push({ id: i, r, c });
-        }
-        if (!validStart) continue;
-
-        let targetBlocks = cloneBlocks(startBlocks);
-        let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
-        let walkCount = 0;
-        let targetWalks = maxSteps * 3; 
-        let lastDirIdx = -1;
-
-        for(let w = 0; w < 150 && walkCount < targetWalks; w++) {
-            let possibleDirs = [0, 1, 2, 3].filter(i => {
-                if (lastDirIdx === 0 && i === 1) return false;
-                if (lastDirIdx === 1 && i === 0) return false;
-                if (lastDirIdx === 2 && i === 3) return false;
-                if (lastDirIdx === 3 && i === 2) return false;
-                return true;
-            });
-            possibleDirs.sort(() => Math.random() - 0.5); 
-            
-            let moved = false;
-            for(let i of possibleDirs) {
-                let d = dirs[i];
-                let testBlocks = cloneBlocks(targetBlocks);
-                if (moveGroup(testBlocks, d[0], d[1], currentWalls)) {
-                    targetBlocks = testBlocks;
-                    lastDirIdx = i;
-                    walkCount++;
-                    moved = true;
-                    break;
-                }
-            }
-            if(!moved) lastDirIdx = -1; 
-        }
-
-        let hasOverlap = false;
-        const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
-        for (let tb of targetBlocks) {
-          if (startCoords.has(`${tb.r},${tb.c}`)) {
-            hasOverlap = true;
-            break;
-          }
-        }
-        if (hasOverlap) continue;
-
-        let optimal = findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls);
-        
-        if (optimal >= minSteps && optimal <= maxSteps) {
-          initialOrangeBlocks = cloneBlocks(startBlocks);
-          targetBlueBlocks = cloneBlocks(targetBlocks); 
-          initialWalls = currentWalls;
-          walls = [...currentWalls];
-          cachedOptimalSteps = optimal;
-          resetLevel();
-          success = true;
-          break;
-        }
-      }
-      
-      if (!success) {
-        generateLevel();
-      }
-    }, 50);
-  }
-
-  function copyMapText() {
-    if (initialOrangeBlocks.length === 0 && targetBlueBlocks.length === 0 && initialWalls.length === 0) {
-      alert("目前沒有可導出的地圖資料！");
-      return;
+        occupied.delete(`${b[0]},${b[1]}`);
+        if (!occupied.has(`${nr},${nc}`)) { b[0] = nr; b[1] = nc; occupied.add(`${nr},${nc}`); }
+        else occupied.add(`${b[0]},${b[1]}`);
     }
+}
 
-    let grid = Array.from({ length: 8 }, () => Array(8).fill(0));
-
-    initialWalls.forEach(([r, c]) => {
-      if (r >= 0 && r < 8 && c >= 0 && c < 8) grid[r][c] = 1;
-    });
-
-    targetBlueBlocks.forEach(b => {
-      if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 3;
-    });
-
-    initialOrangeBlocks.forEach(b => {
-      if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 2;
-    });
-
-    let mapStr = grid.map(row => row.join('')).join('\n');
-
-    navigator.clipboard.writeText(mapStr).then(() => {
-      alert("地圖代碼已成功複製到剪貼簿！\n\n" + mapStr);
-    }).catch(() => {
-      let textArea = document.createElement("textarea");
-      textArea.value = mapStr;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-        document.execCommand('copy');
-        alert("地圖代碼已成功複製到剪貼簿！\n\n" + mapStr);
-      } catch (err) {
-        alert("複製失敗，請手動複製以下地圖代碼：\n\n" + mapStr);
-      }
-      document.body.removeChild(textArea);
-    });
-  }
-
-  function importMapText() {
-    let input = prompt("請貼上 8x8 地圖代碼 (共 64 位數字)：");
-    if (!input) return;
-
-    let cleaned = input.replace(/\s+/g, '');
-    if (cleaned.length !== 64 || !/^[0-3]+$/.test(cleaned)) {
-      alert("匯入失敗！請確保代碼是 8x8 共 64 位數（只能含有數字 0、1、2、3）。");
-      return;
-    }
-
-    let tempWalls = [];
-    let tempStart = [];
-    let tempTarget = [];
-    let orangeCount = 0;
-
-    for (let r = 0; r < 8; r++) {
-      for (let c = 0; c < 8; c++) {
-        let val = cleaned[r * 8 + c];
-        if (val === '1') {
-          tempWalls.push([r, c]);
-        } else if (val === '2') {
-          tempStart.push({ id: `imported-${Date.now()}-${orangeCount++}`, r, c });
-        } else if (val === '3') {
-          tempTarget.push({ r, c });
-        }
-      }
-    }
-
-    if (tempStart.length === 0 || tempTarget.length === 0) {
-      alert("匯入失敗！地圖中必須至少含有一個橘起點(2)與藍終點(3)。");
-      return;
-    }
-    if (tempStart.length !== tempTarget.length) {
-      alert(`⚠️ 注意：起點數量 (${tempStart.length}) 與終點數量 (${tempTarget.length}) 不符，可能無法正常過關。`);
-    }
-
-    document.getElementById('step-counter').innerText = '驗證中...';
-    
-    setTimeout(() => {
-      let trueOptimal = findOptimalStepsBiDir(tempStart, tempTarget, tempWalls);
-      
-      initialWalls = tempWalls;
-      initialOrangeBlocks = tempStart;
-      targetBlueBlocks = tempTarget;
-      cachedOptimalSteps = trueOptimal;
-
-      resetLevel(); 
-      
-      if (trueOptimal === -1) {
-        alert("匯入成功！但此地圖可能極度困難或無解，可嘗試挑戰看看！");
-      } else {
-        alert(`匯入成功！最佳步數 ≤ ${trueOptimal} 步！`);
-      }
-    }, 50);
-  }
-
-  function toggleEditMode() {
-    if (isAnimating) return;
-    isEditMode = !isEditMode;
-    const toolbar = document.getElementById('editor-toolbar');
-    const editBtn = document.getElementById('btn-edit-mode');
-    const cells = document.querySelectorAll('.cell');
-
-    if (isEditMode) {
-      toolbar.style.display = 'flex';
-      editBtn.innerText = '❌ 放棄';
-      editBtn.style.backgroundColor = '#a63d3d';
-      cells.forEach(c => c.classList.add('edit-hover'));
+// ==========================================
+// 3. 遊玩模式 (Play Mode)
+// ==========================================
+function togglePlayMode() {
+    if (isPlayMode) {
+        customConfirm("Exit Play Mode?", "Your current play progress will be lost.", () => exitPlayMode());
     } else {
-      toolbar.style.display = 'none';
-      editBtn.innerText = '🛠️ 設計';
-      editBtn.style.backgroundColor = '#5c3da6';
-      cells.forEach(c => c.classList.remove('edit-hover'));
-      resetLevel();
+        enterPlayMode();
     }
-  }
+}
 
-  function setTool(tool) {
-    currentEditTool = tool;
-    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`btn-tool-${tool}`).classList.add('active');
-  }
+function enterPlayMode() {
+    if (boardData.start.length === 0 || boardData.target.length === 0) {
+        customAlert("Error", "Missing start or target blocks."); return;
+    }
+    if (boardData.start.length !== boardData.target.length) {
+        customAlert("Error", `Mismatch: Starts (${boardData.start.length}) != Targets (${boardData.target.length})`); return;
+    }
+    isPlayMode = true;
+    playInitialState = cloneBlocks(boardData.start);
+    playHistory = [];
+    currentStepIndex = -1;
+    
+    lockBoard(); 
+    document.getElementById('edit-instructions').style.display = 'none';
+    document.getElementById('play-panel').style.display = 'flex';
+    updateHistoryUI();
+    
+    let btn = document.getElementById('btn-play-mode');
+    btn.innerText = "Exit Play Mode";
+    btn.classList.replace('btn-primary', 'btn-danger');
+    if(stateLoaded) saveState();
+}
 
-  function handleCellClick(r, c) {
-    if (!isEditMode) return;
-    let hadWall = initialWalls.some(w => w[0] === r && w[1] === c);
-    let hadStart = initialOrangeBlocks.some(b => b.r === r && b.c === c);
-    let hadTarget = targetBlueBlocks.some(b => b.r === r && b.c === c);
+function exitPlayMode(force = false) {
+    stopHistoryPlay();
+    isPlayMode = false;
+    boardData.start = cloneBlocks(playInitialState);
+    
+    document.getElementById('play-panel').style.display = 'none';
+    document.getElementById('edit-instructions').style.display = 'flex';
+    
+    let btn = document.getElementById('btn-play-mode');
+    btn.innerText = "Play Map";
+    btn.classList.replace('btn-danger', 'btn-primary');
+    
+    unlockBoard(); 
+    drawBoard();
+    if(stateLoaded) saveState();
+}
 
-    if ((currentEditTool === 'wall' && hadWall) || 
-        (currentEditTool === 'start' && hadStart) || 
-        (currentEditTool === 'target' && hadTarget)) {
-      initialWalls = initialWalls.filter(w => w[0] !== r || w[1] !== c);
-      initialOrangeBlocks = initialOrangeBlocks.filter(b => b.r !== r || b.c !== c);
-      targetBlueBlocks = targetBlueBlocks.filter(b => b.r !== r || b.c !== c);
-      resetLevel(); return;
+async function playerMove(dr, dc, moveChar) {
+    if (!isPlayMode || isPrompting) return;
+    stopHistoryPlay(); 
+    
+    let current = cloneBlocks(boardData.start);
+    moveGroup(current, dr, dc, boardData.walls);
+
+    let changed = false;
+    for (let i = 0; i < current.length; i++) {
+        let oldBlock = boardData.start.find(b => b[2] === current[i][2]);
+        if (oldBlock[0] !== current[i][0] || oldBlock[1] !== current[i][1]) {
+            changed = true; break;
+        }
+    }
+    if (!changed) return; 
+
+    if (currentStepIndex < playHistory.length - 1) {
+        isPrompting = true;
+        let res = await showModal({
+            title: "Overwrite History?", 
+            msg: "You are making a move from a past state.\nThis will permanently delete your saved future steps.\nContinue?", 
+            type: 'confirm'
+        });
+        isPrompting = false;
+        
+        if (!res) return; 
+        playHistory = playHistory.slice(0, currentStepIndex + 1);
     }
 
-    initialWalls = initialWalls.filter(w => w[0] !== r || w[1] !== c);
-    initialOrangeBlocks = initialOrangeBlocks.filter(b => b.r !== r || b.c !== c);
-    targetBlueBlocks = targetBlueBlocks.filter(b => b.r !== r || b.c !== c);
+    boardData.start = current;
+    playHistory.push({ move: moveChar, state: cloneBlocks(current) });
+    currentStepIndex++;
+    
+    renderPlayBoard();
+    updateHistoryUI();
+    checkWin();
+    if(stateLoaded) saveState();
+}
 
-    if (currentEditTool === 'wall') initialWalls.push([r, c]);
-    else if (currentEditTool === 'start') initialOrangeBlocks.push({ id: `custom-${Date.now()}-${Math.floor(Math.random()*1000)}`, r, c });
-    else if (currentEditTool === 'target') targetBlueBlocks.push({ r, c });
-    resetLevel();
-  }
+function playerUndo() {
+    if (currentStepIndex > -1) jumpToStep(currentStepIndex - 1);
+}
 
-  function clearEditor() {
-    initialWalls = [];
-    initialOrangeBlocks = [];
-    targetBlueBlocks = [];
-    resetLevel();
-  }
+function playerRedo() {
+    if (currentStepIndex < playHistory.length - 1) jumpToStep(currentStepIndex + 1);
+}
 
-  function finishEditing() {
-    if (initialOrangeBlocks.length === 0 || targetBlueBlocks.length === 0) {
-      alert('必須至少放置一個橘起點和藍終點！'); return;
+function jumpToStep(index) {
+    stopHistoryPlay();
+    currentStepIndex = index;
+    if (index === -1) {
+        boardData.start = cloneBlocks(playInitialState);
+    } else {
+        boardData.start = cloneBlocks(playHistory[index].state);
     }
-    if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
-      alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
+    renderPlayBoard();
+    updateHistoryUI();
+    if(stateLoaded) saveState();
+}
+
+function updateHistoryUI() {
+    const container = document.getElementById('path-display');
+    container.innerHTML = '';
+    
+    let startChip = document.createElement('div');
+    startChip.className = 'path-chip start-chip'; 
+    if (currentStepIndex === -1) startChip.classList.add('active');
+    startChip.innerText = 'Start';
+    startChip.onclick = () => jumpToStep(-1);
+    container.appendChild(startChip);
+
+    const arrows = { 'U': '↑', 'D': '↓', 'L': '←', 'R': '→' };
+
+    playHistory.forEach((h, i) => {
+        let chip = document.createElement('div');
+        chip.className = 'path-chip';
+        if (i === currentStepIndex) chip.classList.add('active');
+        if (i > currentStepIndex) chip.classList.add('future'); 
+        chip.innerText = `${i+1}. ${arrows[h.move]}`;
+        chip.onclick = () => jumpToStep(i);
+        container.appendChild(chip);
+    });
+    
+    let activeChip = container.querySelector('.active');
+    if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    let indicator = document.getElementById('step-indicator');
+    if (indicator) {
+        indicator.innerText = `${currentStepIndex + 1} / ${playHistory.length}`;
     }
-    document.getElementById('step-counter').innerText = 'AI 驗證中...';
-    setTimeout(() => {
-      let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
-      if (trueOptimal === -1) {
-        alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
-        cachedOptimalSteps = -1;
-      } else {
-        alert(`驗證成功！挑戰目標：${trueOptimal} 步！`);
-        cachedOptimalSteps = trueOptimal; 
-      }
-      toggleEditMode();
-    }, 50);
-  }
+}
 
-  window.addEventListener('keydown', (e) => {
-    if (['ArrowUp', 'w', 'W'].includes(e.key)) { move(-1, 0); e.preventDefault(); }
-    if (['ArrowDown', 's', 'S'].includes(e.key)) { move(1, 0); e.preventDefault(); }
-    if (['ArrowLeft', 'a', 'A'].includes(e.key)) { move(0, -1); e.preventDefault(); }
-    if (['ArrowRight', 'd', 'D'].includes(e.key)) { move(0, 1); e.preventDefault(); }
-    if (['z', 'Z'].includes(e.key)) undo();
-    if (['r', 'R'].includes(e.key)) resetLevel();
-  });
+function renderPlayBoard() {
+    let animSpeed = globalAnimSpeed;
+    boardData.start.forEach((b) => {
+        let el = document.getElementById(`block-${b[2]}`); 
+        if(el) {
+            if (animSpeed === 0) el.style.transition = 'none';
+            else el.style.transition = `top ${animSpeed}ms ease-out, left ${animSpeed}ms ease-out, background-color 0.15s ease`;
+            
+            el.style.top = `${PADDING + b[0] * (CELL_SIZE + GAP)}px`;
+            el.style.left = `${PADDING + b[1] * (CELL_SIZE + GAP)}px`;
+            
+            if (boardData.target.some(t => t[0]===b[0] && t[1]===b[1])) { el.classList.add('on-target'); } 
+            else { el.classList.remove('on-target'); }
+        }
+    });
+}
 
-  let touchStartX = 0, touchStartY = 0;
-  document.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-  }, {passive: false});
+function checkWin() {
+    let win = boardData.start.every(b => boardData.target.some(t => t[0]===b[0] && t[1]===b[1]));
+    if (win) {
+        let path = playHistory.map(h => h.move).join(' → ');
+        setTimeout(() => {
+            customAlert("Puzzle Solved!", `Congratulations! You solved it in ${playHistory.length} steps.\n\nPath:\n${path}`);
+        }, globalAnimSpeed + 50);
+    }
+}
 
-  document.addEventListener('touchend', e => {
+// 玩家足跡自動回放邏輯
+function updateSpeed() {
+    let val = parseFloat(document.getElementById('speed-slider').value);
+    playDelay = 300 / val;
+    document.getElementById('speed-label').innerText = val.toFixed(2) + 'x';
+
+    if (playHistoryTimer) { clearTimeout(playHistoryTimer); startHistoryPlayLoop(); }
+}
+
+function toggleHistoryPlay() {
+    let btn = document.getElementById('btn-history-play');
+    if (playHistoryTimer) { 
+        stopHistoryPlay(); 
+    } else {
+        btn.innerText = 'Pause Replay'; btn.classList.remove('btn-primary');
+        if (currentStepIndex === playHistory.length - 1) {
+            currentStepIndex = -1;
+            boardData.start = cloneBlocks(playInitialState);
+            renderPlayBoard();
+            updateHistoryUI();
+        }
+        startHistoryPlayLoop();
+    }
+}
+
+function startHistoryPlayLoop() {
+    playHistoryTimer = setTimeout(() => {
+        if (currentStepIndex < playHistory.length - 1) { 
+            currentStepIndex++;
+            boardData.start = cloneBlocks(playHistory[currentStepIndex].state);
+            renderPlayBoard();
+            updateHistoryUI();
+            startHistoryPlayLoop(); 
+        } else { 
+            stopHistoryPlay(); 
+        }
+    }, playDelay);
+}
+
+function stopHistoryPlay() { 
+    if (playHistoryTimer) {
+        clearTimeout(playHistoryTimer); 
+        playHistoryTimer = null; 
+    }
+    let btn = document.getElementById('btn-history-play');
+    if(btn) { btn.innerText = 'Auto Replay'; btn.classList.add('btn-primary'); }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (!isPlayMode) return;
+    if (['ArrowUp', 'w', 'W'].includes(e.key)) { e.preventDefault(); playerMove(-1, 0, 'U'); }
+    else if (['ArrowDown', 's', 'S'].includes(e.key)) { e.preventDefault(); playerMove(1, 0, 'D'); }
+    else if (['ArrowLeft', 'a', 'A'].includes(e.key)) { e.preventDefault(); playerMove(0, -1, 'L'); }
+    else if (['ArrowRight', 'd', 'D'].includes(e.key)) { e.preventDefault(); playerMove(0, 1, 'R'); }
+    else if (e.key === 'z' && e.ctrlKey) playerUndo();
+});
+
+let touchStartX = 0, touchStartY = 0;
+document.getElementById('game-board').addEventListener('touchstart', e => {
+    if(!isPlayMode) return;
+    touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY;
+}, {passive: true});
+
+document.getElementById('game-board').addEventListener('touchend', e => {
+    if(!isPlayMode) return;
     let dx = e.changedTouches[0].screenX - touchStartX;
     let dy = e.changedTouches[0].screenY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) move(0, dx > 0 ? 1 : -1);
-    else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) move(dy > 0 ? 1 : -1, 0);
-  }, {passive: false});
-
-  // 強制攔截未授權的滑動事件，確保畫面不會偏移
-  document.addEventListener('touchmove', e => {
-    const tag = e.target.tagName;
-    if (tag !== 'BUTTON' && tag !== 'SELECT' && tag !== 'OPTION') {
-      e.preventDefault();
+    if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+        if (Math.abs(dx) > Math.abs(dy)) {
+            if (dx > 0) playerMove(0, 1, 'R'); else playerMove(0, -1, 'L');
+        } else {
+            if (dy > 0) playerMove(1, 0, 'D'); else playerMove(-1, 0, 'U');
+        }
     }
-  }, {passive: false});
+}, {passive: true});
 
-  window.onload = () => {
-    initBoard();
-    adjustScale();
-  };
+// ==========================================
+// 4. 地圖代碼匯出匯入
+// ==========================================
+function copyMapText() {
+    let grid = Array.from({length: 8}, () => Array(8).fill(0));
+    boardData.walls.forEach(w => grid[w[0]][w[1]] = 1);
+    boardData.target.forEach(w => grid[w[0]][w[1]] = 3);
+    boardData.start.forEach(w => {
+        if (grid[w[0]][w[1]] === 3) grid[w[0]][w[1]] = 4;
+        else grid[w[0]][w[1]] = 2;
+    });
+    navigator.clipboard.writeText(grid.map(r => r.join('')).join('\n'))
+        .then(()=> customAlert("Success", "Map code copied to clipboard!"));
+}
+
+function importMapText() {
+    customPrompt("Import Map", "Paste map code (64 digits, 0=Empty, 1=Wall, 2=Start, 3=Target, 4=Overlap):", (input) => {
+        let cl = input.replace(/\s+/g, '');
+        if (cl.length !== 64 || !/^[0-4]+$/.test(cl)) { customAlert("Error", "Invalid format!"); return; }
+        
+        resetPlayState(); 
+        boardData = { walls: [], start: [], target: [] }; blockIdCounter = 0;
+        for (let i=0; i<64; i++) {
+            let r = Math.floor(i/8), c = i%8, v = cl[i];
+            if (v==='1') boardData.walls.push([r, c]);
+            else if (v==='2') boardData.start.push([r, c, blockIdCounter++]);
+            else if (v==='3') boardData.target.push([r, c]);
+            else if (v==='4') {
+                boardData.target.push([r, c]);
+                boardData.start.push([r, c, blockIdCounter++]);
+            }
+        }
+        drawBoard();
+        if(stateLoaded) saveState();
+    });
+}
+
+window.onload = () => { 
+    initBoard(); 
+    loadState(); 
+    stateLoaded = true;
+    drawBoard(); 
+    
+    if (isPlayMode) {
+        lockBoard();
+        document.getElementById('edit-instructions').style.display = 'none';
+        document.getElementById('play-panel').style.display = 'flex';
+        updateHistoryUI();
+        let btn = document.getElementById('btn-play-mode');
+        btn.innerText = "Exit Play Mode";
+        btn.classList.replace('btn-primary', 'btn-danger');
+        renderPlayBoard();
+    }
+};
 </script>
 </body>
 </html>
